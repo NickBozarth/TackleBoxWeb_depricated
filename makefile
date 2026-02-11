@@ -1,21 +1,36 @@
+ifeq ($(OS), Windows_NT)
+	RM = del /Q /S
+	MKDIR = if not exist $(TARGETDIR) mkdir
+	FIX_PATH = $(subst /,\,$1)
+	TARGET_EXEC = $(TARGET).exe
+	LDFLAGS = -lws2_32
+endif
+
+
 CC = gcc
-CFLAGS = -Wall -Iheaders
-LDFLAGS = -lws2_32 # definitely wont work on linux
+CFLAGS = -Wall -Werror -Iheaders -MMD -MP
 TARGETDIR = target
 TARGET = Tacklebox
 SRCS = $(wildcard src/*.c)
 OBJS = $(SRCS:src/%.c=$(TARGETDIR)/%.o)
+DEPS = $(OBJS:.o=.d)
 
-all : $(TARGET)
+all : $(TARGET_EXEC)
 
-run : $(TARGET)
+-include $(DEPS)
+
+run : all
 	./$(TARGETDIR)/$(TARGET)
 
-$(TARGET) : $(OBJS)
-	$(CC) $(OBJS) $(LDFLAGS) -o $(TARGETDIR)/$@
+$(TARGET_EXEC) : $(OBJS)
+	$(CC) $(OBJS) -o $(TARGETDIR)/$@ $(LDFLAGS)
 
 $(TARGETDIR)/%.o : src/%.c
+	@$(MKDIR)
 	$(CC) $(CFLAGS) -c $< -o $@
 
 
-.PHONY : all
+clean:
+	$(RM) $(call FIX_PATH,$(TARGETDIR)/*)
+
+.PHONY : all run clean

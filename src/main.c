@@ -1,6 +1,7 @@
 #include <stdio.h>
-#include "win_server.h"
+#include "server.h"
 
 int main() {
+    
     openserver();
 }
