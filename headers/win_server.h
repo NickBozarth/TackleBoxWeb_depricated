@@ -2,15 +2,13 @@
 #define WIN32_LEAN_AND_MEAN
 #endif
 
+
 #include <windows.h>
 #include <WinSock2.h>
 #include <WS2tcpip.h>
 #include <stdio.h>
 
-#define PORT "8080"
-#define SERVE_DIRECTORY ".\\serve\\"
-#define MAX_FILENAME_LEN 256
-#define BUFFER_SIZE 1024
+
 
 #define HTTP_HEADER_OK "HTTP/1.1 200 OK\r\n"
 #define HTTP_HEADER_TEXT_PLAIN "Content-Type: text/plain\r\n"

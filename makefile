@@ -4,14 +4,22 @@ ifeq ($(OS), Windows_NT)
 	FIX_PATH = $(subst /,\,$1)
 	TARGET_EXEC = $(TARGET).exe
 	LDFLAGS = -lws2_32
+else
+	RM = rm -rf
+	MKDIR = mkdir -p $(TARGETDIR)
+	FIX_PATH = $1
+	TARGET_EXEC = $(TARGET)
+LDFLAGS = 
 endif
 
 
 CC = gcc
-CFLAGS = -Wall -Werror -Iheaders -MMD -MP
+CFLAGS = -Wall -Iheaders -MMD -MP
 TARGETDIR = target
 TARGET = Tacklebox
-SRCS = $(wildcard src/*.c)
+SRCS_ALL = $(wildcard src/*.c)
+BLACKLIST_FILES = src/http.c 
+SRCS = $(filter-out $(BLACKLIST_FILES), $(SRCS_ALL))
 OBJS = $(SRCS:src/%.c=$(TARGETDIR)/%.o)
 DEPS = $(OBJS:.o=.d)
 
@@ -29,8 +37,10 @@ $(TARGETDIR)/%.o : src/%.c
 	@$(MKDIR)
 	$(CC) $(CFLAGS) -c $< -o $@
 
+bear:
+	bear -- make clean all
 
 clean:
 	$(RM) $(call FIX_PATH,$(TARGETDIR)/*)
 
-.PHONY : all run clean
+.PHONY : all bear run clean

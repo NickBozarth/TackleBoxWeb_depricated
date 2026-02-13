@@ -2,6 +2,6 @@
 #include "server.h"
 
 int main() {
-    
-    openserver();
+    HTTPServer server = {};
+    serve(&server);
 }

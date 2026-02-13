@@ -1,4 +1,7 @@
-#include "win_server.h"
+// all definitions for windows server functions
+#ifdef _WIN32
+
+#include "server.h"
 #include "http.h"
 
 const char* gFileNotFoundError = "HTTP/1.1 404 Not Found\r\nContent-Length: 9\r\n\r\nNot Found";
@@ -150,4 +153,4 @@ int openserver() {
     return 0;
 }
 
-
+#endif

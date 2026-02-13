@@ -1,0 +1,66 @@
+[
+  {
+    "file": "src/linux_server.c",
+    "arguments": [
+      "gcc",
+      "-Wall",
+      "-Iheaders",
+      "-MMD",
+      "-MP",
+      "-c",
+      "src/linux_server.c",
+      "-o",
+      "target/linux_server.o"
+    ],
+    "directory": "/home/zac/Documents/Code/TackleBox",
+    "output": "target/linux_server.o"
+  },
+  {
+    "file": "src/main.c",
+    "arguments": [
+      "gcc",
+      "-Wall",
+      "-Iheaders",
+      "-MMD",
+      "-MP",
+      "-c",
+      "src/main.c",
+      "-o",
+      "target/main.o"
+    ],
+    "directory": "/home/zac/Documents/Code/TackleBox",
+    "output": "target/main.o"
+  },
+  {
+    "file": "src/server.c",
+    "arguments": [
+      "gcc",
+      "-Wall",
+      "-Iheaders",
+      "-MMD",
+      "-MP",
+      "-c",
+      "src/server.c",
+      "-o",
+      "target/server.o"
+    ],
+    "directory": "/home/zac/Documents/Code/TackleBox",
+    "output": "target/server.o"
+  },
+  {
+    "file": "src/win_server.c",
+    "arguments": [
+      "gcc",
+      "-Wall",
+      "-Iheaders",
+      "-MMD",
+      "-MP",
+      "-c",
+      "src/win_server.c",
+      "-o",
+      "target/win_server.o"
+    ],
+    "directory": "/home/zac/Documents/Code/TackleBox",
+    "output": "target/win_server.o"
+  }
+]
