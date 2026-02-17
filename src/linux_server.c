@@ -27,12 +27,14 @@ void serve(HTTPServer* server) {
         client_socket = accept(server_socket, (struct sockaddr*)&address, (socklen_t*)&addrlen);
 
         char buffer[BUFFER_SIZE] = {};
-        read(client_socket, buffer, BUFFER_SIZE);
-        printf("REQUEST: {\n%s\n}", buffer);
+        size_t bytes_read = read(client_socket, buffer, BUFFER_SIZE);
+    
+        HTTPResponse resp = bufftoresp(buffer, bytes_read);
+        printf("about to print response\n");
+        printresp(&resp);
 
         char *response = "HTTP/1.1 200 OK\nContent-Type: text/plain\nContent-Length: 12\n\nHello World!";
         write(client_socket, response, strlen(response));
-
         close(client_socket);
     }
 }

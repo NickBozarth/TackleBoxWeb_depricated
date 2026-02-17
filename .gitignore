@@ -2,4 +2,6 @@ main.exe
 main
 .vscode
 
+.cache
+compile_commands.json
 target/*

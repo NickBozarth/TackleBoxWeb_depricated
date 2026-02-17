@@ -1,6 +1,8 @@
+#pragma once
+
 #include <stddef.h>
 #include "dynamic_arr.h"
-
+#include "event.h"
 
 #define PORT 8080
 #define PORT_STR "8080"
@@ -34,25 +36,28 @@ typedef struct {
 } HTTPResponse;
 
 
-typedef enum {                   // typeof data in listener
-    HTTPLISTENERTYPE_MATCH_NAME, // char* 
-} HTTPListenerType_e;
 
+DYNARR(HTTPEvent);
 typedef struct {
-    HTTPListenerType_e type;
-    char* header;
-    void* data;
-} HTTPListener;
-
-
-typedef struct {
-    
+    HTTPEvent__Dynarr services;
+    HTTPEvent__Dynarr responders;
 } HTTPServer;
 
 
-void serve(HTTPServer* server);
+
+
+void printresp(HTTPResponse* resp);
+HTTPResponse bufftoresp(char* buffer, size_t buffer_len);
+
+int register_event(
+        HTTPServer* server,
+        HTTPEventDataType_e header_type,       void* header_data,
+        HTTPEventDataType_e value_type,        void* value_data,
+        HTTPEventResponseType_e response_type, void* callback
+);
+char* eval_events(HTTPServer* server, HTTPResponse* resp);
 
 void send_client();
+void serve(HTTPServer* server);
 
 // void printresp(HTTPResponse* resp);
-//HTTPResponse bufftoresp(char* buffer, size_t buffer_len);
