@@ -30,8 +30,9 @@ void serve(HTTPServer* server) {
         size_t bytes_read = read(client_socket, buffer, BUFFER_SIZE);
     
         HTTPResponse resp = bufftoresp(buffer, bytes_read);
-        printf("about to print response\n");
-        printresp(&resp);
+        char* event_response = eval_events(server, &resp);
+        if (event_response == NULL) printf("EVENTS RETURNED NULL\n");
+        else printf("EVENTS RETURNED {\n%s\n}", event_response);
 
         char *response = "HTTP/1.1 200 OK\nContent-Type: text/plain\nContent-Length: 12\n\nHello World!";
         write(client_socket, response, strlen(response));

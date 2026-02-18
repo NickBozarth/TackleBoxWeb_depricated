@@ -1,6 +1,7 @@
 #include "server.h"
 #include <stdio.h>
 #include <string.h>
+#include <stdbool.h>
 
 
 void printresp(HTTPResponse *resp) {
@@ -122,6 +123,97 @@ int register_event(
 }
 
 
-char* eval_events(HTTPServer *server, HTTPResponse *resp) {
-    exit(1); // TODO
+
+// returns the value of the matched header
+// returns NULL if no header is found to match
+char* event_header_matches(HTTPEventData* header_data, HTTPResponse* resp) {
+    switch (header_data->type) {
+        case EVENT_DATA_TYPE_MATCH_ALL:
+            return (char*)1;
+        break;
+        case EVENT_DATA_TYPE_MATCH_STR:
+            printf("header data -> [%s]\n", (char*)header_data->data);
+            printf("resp path -> [%s]\n", resp->path);
+
+            // special cases for non headers
+            if (strcmp((char*)header_data->data, "method")   == 0) return resp->method;
+            if (strcmp((char*)header_data->data, "path")     == 0) return resp->path;
+            if (strcmp((char*)header_data->data, "protocol") == 0) return resp->protocol;
+            
+            // check all headers for a match
+            char* header_name = (char*)header_data->data;
+            FOR_ITEM_IN_ARR(resp->headers, header) {
+                if (strcmp(header_name, header->header) == 0) return header->value;
+            }
+            return NULL;
+        break;
+        case EVENT_DATA_TYPE_CALLBACK:
+            return ((char* (*)(HTTPResponse*))header_data->data)(resp);
+        break;
+    }
+
+    return NULL;
 }
+
+bool event_value_matches(HTTPEventData* value_data, char* value) {
+    switch (value_data->type) {
+        case EVENT_DATA_TYPE_MATCH_ALL:
+            return true;
+        break;
+        case EVENT_DATA_TYPE_MATCH_STR:
+            return strcmp((char*)value_data->data, value) == 0;
+        break;
+        case EVENT_DATA_TYPE_CALLBACK:
+            return ((bool (*)(char*))value_data->data)(value);
+        break;
+    }
+
+    return false;
+}
+
+bool event_matches(HTTPEvent* event, HTTPResponse* resp) {
+    char* ret = event_header_matches(&event->header_data, resp);
+    if (ret == NULL)     return false;
+    if (ret == (char*)1) return true;
+
+    return event_value_matches(&event->value_data, ret);
+}
+
+
+char* eval_events(HTTPServer *server, HTTPResponse *resp) {
+    Context context = {};
+    ContextItem resp_ci = (ContextItem) {
+        .name = "response",
+        .data = resp,
+    };
+    ARR_APPEND(context.items, resp_ci);
+
+    FOR_ITEM_IN_ARR(server->services, service) {
+        if (event_matches(service, resp)) {
+            int ret = ((int (*) (Context*))service->resp.callback)(&context);
+            if (ret != 0) return NULL;
+        }
+    }
+
+
+    FOR_ITEM_IN_ARR(server->responders, responder) {
+        if (event_matches(responder, resp)) {
+            return ((char* (*)(Context*))responder->resp.callback)(&context);
+        }
+    }
+
+    return NULL;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+

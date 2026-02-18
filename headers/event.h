@@ -1,6 +1,22 @@
+#include "dynamic_arr.h"
+
+typedef struct {
+    char* name;
+    void* data;
+} ContextItem;
+
+
+typedef struct {
+    DYNARR(ContextItem) items;
+} Context;
+
+
+
 typedef enum {                      // typeof data
     EVENT_DATA_TYPE_MATCH_STR,      // char*
-    EVENT_DATA_TYPE_CALLBACK,       // bool (*f) (char*)
+    EVENT_DATA_TYPE_CALLBACK,       // header_data -> char* (*callback)(HTTPResponse*)
+                                    // value_data  -> bool  (*callback)(char*)
+    EVENT_DATA_TYPE_MATCH_ALL,      // void
 } HTTPEventDataType_e;
 
 typedef struct {

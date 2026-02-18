@@ -23,12 +23,13 @@ SRCS = $(filter-out $(BLACKLIST_FILES), $(SRCS_ALL))
 OBJS = $(SRCS:src/%.c=$(TARGETDIR)/%.o)
 DEPS = $(OBJS:.o=.d)
 
-all : $(TARGET_EXEC)
-
 -include $(DEPS)
+
+all : $(TARGET_EXEC)
 
 run : all
 	./$(TARGETDIR)/$(TARGET)
+
 
 $(TARGET_EXEC) : $(OBJS)
 	$(CC) $(OBJS) -o $(TARGETDIR)/$@ $(LDFLAGS)

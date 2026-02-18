@@ -39,11 +39,9 @@ typedef struct {
 
 DYNARR(HTTPEvent);
 typedef struct {
-    HTTPEvent__Dynarr services;
-    HTTPEvent__Dynarr responders;
+    struct HTTPEvent__Dynarr services;
+    struct HTTPEvent__Dynarr responders;
 } HTTPServer;
-
-
 
 
 void printresp(HTTPResponse* resp);
@@ -58,6 +56,7 @@ int register_event(
 char* eval_events(HTTPServer* server, HTTPResponse* resp);
 
 void send_client();
+int servefile(SOCKET clientSocket, char* filePath);
 void serve(HTTPServer* server);
 
 // void printresp(HTTPResponse* resp);

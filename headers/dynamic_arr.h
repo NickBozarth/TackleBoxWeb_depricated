@@ -16,4 +16,7 @@ struct TYPE##__Dynarr { \
     ARRAY.item_count++;\
 } while(0)
 
-#define ARR_ITEM_AT(ARRAY, INDEX) (ARRAY.item_count < INDEX) ? ARRAY.items[INDEX] : {}
+#define ARR_ITEM_AT(ARRAY, INDEX, DEFAULT) (ARRAY.item_count < INDEX) ? ARRAY.items[INDEX] : DEFAULT
+
+#define FOR_ITEM_IN_ARR(ARRAY, ITEM_NAME) \
+    for(typeof(ARRAY.items) ITEM_NAME = ARRAY.items; ITEM_NAME < ARRAY.items + ARRAY.item_count; ITEM_NAME++)
