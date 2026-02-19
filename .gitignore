@@ -3,5 +3,7 @@ main
 .vscode
 
 .cache
+.cache/
+.cache/*
 compile_commands.json
 target/*

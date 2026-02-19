@@ -1,5 +1,5 @@
 #include <stdio.h>
-#include "server.h"
+#include "registry.h"
 
 #include <stdbool.h>
 #include <string.h>
@@ -15,14 +15,6 @@ char* callback(Context* context) {
 
 int main() {
     HTTPServer server = {};
-    
-    register_event(
-            &server, 
-            EVENT_DATA_TYPE_MATCH_STR, "path", 
-            EVENT_DATA_TYPE_CALLBACK,  match_path,
-            EVENT_RESPONSE_TYPE_RESPONDER, callback
-    );
-
-
+    register_all_events(&server);
     serve(&server);
 }

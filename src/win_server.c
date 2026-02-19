@@ -11,7 +11,7 @@ const char* gFileNotFoundError = "HTTP/1.1 404 Not Found\r\nContent-Length: 9\r\
 int servefile(SOCKET clientSocket, const char* filePath) {
     FILE* fp;
     char fullFilePath[sizeof(SERVE_DIRECTORY) + MAX_FILENAME_LEN] = SERVE_DIRECTORY;
-    strcat(fullFilePath, filePath);
+    strcat(fullFilePath, filePath); // TODO switch to a safe version: ex snprintf or strncat
 
     fp = fopen(fullFilePath, "rb");
     if (fp == NULL) {

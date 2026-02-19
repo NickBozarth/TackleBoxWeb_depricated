@@ -4,6 +4,29 @@
 #include <stdbool.h>
 
 
+
+EventResponse event_response_ok() {
+    return (EventResponse) {
+        .type = EVENT_RESPONSE_OK,
+        .data.ok = NULL
+    };
+}
+
+EventResponse event_response_err(int err) {
+    return (EventResponse) {
+        .type = EVENT_RESPONSE_ERR,
+        .data.err = err,
+    };
+}
+
+EventResponse event_response_resp(HTTPResponse resp) {
+    return (EventResponse) {
+        .type = EVENT_RESPONSE_RESPOND,
+        .data.resp = resp
+    };
+}
+
+
 void printresp(HTTPResponse *resp) {
     printf("METHOD: [%s]\n", resp->method);
     printf("PATH: [%s]\n", resp->path);
@@ -11,7 +34,7 @@ void printresp(HTTPResponse *resp) {
 
     FOR_I_IN_ARR(resp->headers) {
         HTTPHeader cur_header = resp->headers.items[i];
-        printf("HEADER [%s] -> VALUE [%s]\n", cur_header.header, cur_header.value);
+        printf("HEADER [%s] -> VALUE [%s]\n", cur_header.name, cur_header.value);
     }
 
     printf("BODY LENGTH [%lu]\n", resp->body_len);
@@ -86,7 +109,7 @@ int register_event(
         HTTPServer* server,
         HTTPEventDataType_e header_type,       void* header_data,
         HTTPEventDataType_e value_type,        void* value_data,
-        HTTPEventResponseType_e response_type, void* callback
+        HTTPEventResponseType_e response_type, EventResponse (*callback)(Context*)
 ) {
    HTTPEvent event = (HTTPEvent) {
         .id = server->responders.item_count + server->services.item_count,
@@ -143,7 +166,7 @@ char* event_header_matches(HTTPEventData* header_data, HTTPResponse* resp) {
             // check all headers for a match
             char* header_name = (char*)header_data->data;
             FOR_ITEM_IN_ARR(resp->headers, header) {
-                if (strcmp(header_name, header->header) == 0) return header->value;
+                if (strcmp(header_name, header->name) == 0) return header->value;
             }
             return NULL;
         break;
@@ -180,29 +203,41 @@ bool event_matches(HTTPEvent* event, HTTPResponse* resp) {
 }
 
 
-char* eval_events(HTTPServer *server, HTTPResponse *resp) {
+EventResponse eval_events(HTTPServer *server, HTTPResponse *resp, SOCKET* clientSocket) {
     Context context = {};
     ContextItem resp_ci = (ContextItem) {
         .name = "response",
         .data = resp,
     };
-    ARR_APPEND(context.items, resp_ci);
+    ContextItem socket_ci = (ContextItem) {
+        .name = "clientSocket",
+        .data = clientSocket
+    };
+    ARR_APPEND(context, resp_ci);
+    ARR_APPEND(context, socket_ci);
+
 
     FOR_ITEM_IN_ARR(server->services, service) {
         if (event_matches(service, resp)) {
-            int ret = ((int (*) (Context*))service->resp.callback)(&context);
-            if (ret != 0) return NULL;
+            EventResponse eres = ((EventResponse(*)(Context*))service->resp.callback)(&context);
+            if (eres.type == EVENT_RESPONSE_OK)      continue;
+            if (eres.type == EVENT_RESPONSE_ERR)     return eres; // TODO respond with error response instead
+            if (eres.type == EVENT_RESPONSE_RESPOND) return eres;
         }
     }
 
 
     FOR_ITEM_IN_ARR(server->responders, responder) {
         if (event_matches(responder, resp)) {
-            return ((char* (*)(Context*))responder->resp.callback)(&context);
+            EventResponse eres = ((EventResponse(*)(Context*))responder->resp.callback)(&context);
+            if (eres.type == EVENT_RESPONSE_OK)      continue;
+            if (eres.type == EVENT_RESPONSE_ERR)     return eres; // TODO respond with error response instead
+            if (eres.type == EVENT_RESPONSE_RESPOND) return eres;
+
         }
     }
 
-    return NULL;
+    return event_response_err(404);
 }
 
 
