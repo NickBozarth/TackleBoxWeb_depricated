@@ -139,10 +139,12 @@ int register_event(
             ARR_APPEND(server->responders,event);
             return event.id;
         break;
-        default:
-            return -1;
+        case EVENT_RESPONSE_TYPE_PROCESSER:
+            ARR_APPEND(server->processors, event);
         break;
    } 
+
+   return -1;
 }
 
 
@@ -203,38 +205,70 @@ bool event_matches(HTTPEvent* event, HTTPResponse* resp) {
 }
 
 
-EventResponse eval_events(HTTPServer *server, HTTPResponse *resp, SOCKET* clientSocket) {
+EventResponse eval_events(HTTPServer *server, HTTPResponse *client_resp, SOCKET* clientSocket) {
     Context context = {};
     ContextItem resp_ci = (ContextItem) {
         .name = "response",
-        .data = resp,
+        .data = client_resp,
+        .needsDealloc = false,
     };
     ContextItem socket_ci = (ContextItem) {
         .name = "clientSocket",
-        .data = clientSocket
+        .data = clientSocket,
+        .needsDealloc = false,
     };
     ARR_APPEND(context, resp_ci);
     ARR_APPEND(context, socket_ci);
 
 
+    // EVENT_RESPONSE_OK will serve as an unset because there is no case that uses OK and returns
+    EventResponse server_resp = { .type = EVENT_RESPONSE_OK };
     FOR_ITEM_IN_ARR(server->services, service) {
-        if (event_matches(service, resp)) {
+        if (event_matches(service, client_resp)) {
             EventResponse eres = ((EventResponse(*)(Context*))service->resp.callback)(&context);
-            if (eres.type == EVENT_RESPONSE_OK)      continue;
-            if (eres.type == EVENT_RESPONSE_ERR)     return eres; // TODO respond with error response instead
-            if (eres.type == EVENT_RESPONSE_RESPOND) return eres;
+
+            switch (eres.type) {
+                case EVENT_RESPONSE_OK:
+                    continue;
+                break;
+                case EVENT_RESPONSE_ERR:
+                case EVENT_RESPONSE_RESPOND:
+                    server_resp = eres;
+                    goto PROCESS_RESP;
+                break;
+            }
         }
     }
 
 
     FOR_ITEM_IN_ARR(server->responders, responder) {
-        if (event_matches(responder, resp)) {
+        if (event_matches(responder, client_resp)) {
             EventResponse eres = ((EventResponse(*)(Context*))responder->resp.callback)(&context);
-            if (eres.type == EVENT_RESPONSE_OK)      continue;
-            if (eres.type == EVENT_RESPONSE_ERR)     return eres; // TODO respond with error response instead
-            if (eres.type == EVENT_RESPONSE_RESPOND) return eres;
+
+            switch (eres.type) {
+                case EVENT_RESPONSE_OK:
+                    server_resp = event_response_err(500);
+                    goto  PROCESS_RESP;
+                break;
+                case EVENT_RESPONSE_ERR:
+                case EVENT_RESPONSE_RESPOND:
+                    server_resp = eres;
+                    goto PROCESS_RESP;
+                break;
+            }
 
         }
+    }
+
+
+PROCESS_RESP:
+    FOR_ITEM_IN_ARR(server->processors, processor) {
+
+    }
+
+    // handle deallocation for context items
+    FOR_ITEM_IN_ARR(context, context_item) {
+        if (context_item->needsDealloc) free(context_item->data);
     }
 
     return event_response_err(404);

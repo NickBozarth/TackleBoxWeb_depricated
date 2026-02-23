@@ -40,7 +40,6 @@ Cookies context_to_cookies(Context *context) {
     // break apart cookies by '; ' delimiter
     char* cookies_str = cookie_header->value;
     ARR_APPEND(cookies, cookie_from_str(&cookies_str));
-    printf("BEFORE %s\n", cookies_str);
     while ((cookies_str = strchr(cookies_str, ';')) != NULL) {
         // before
         // "cookie1; cookie2; ..."
@@ -50,7 +49,6 @@ Cookies context_to_cookies(Context *context) {
         // **after**
         // "cookie1\0 cookie2; ..."
         //            ^ cookies_str
-        printf("AFTER %s\n", cookies_str);
         ARR_APPEND(cookies, cookie_from_str(&cookies_str));
     }
     

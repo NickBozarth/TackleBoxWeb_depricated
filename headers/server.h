@@ -1,6 +1,7 @@
 #pragma once
 
 #include <stddef.h>
+#include <stdbool.h>
 #include "dynamic_arr.h"
 // #include "event.h"
 
@@ -55,6 +56,12 @@ typedef struct {
 typedef struct {
     char* name;
     void* data;
+    enum {
+        NO_FREE = 0,
+        C_FREE,
+        CALLBACK_DEALLOC
+    } dealloc_type;
+    void (*dealloc_function)(void*);
 } ContextItem;
 
 typedef DYNARR(ContextItem) Context;
@@ -73,8 +80,24 @@ typedef struct {
 
 
 typedef enum {
-    EVENT_RESPONSE_TYPE_SERVICE,
-    EVENT_RESPONSE_TYPE_RESPONDER,
+    EVENT_RESPONSE_TYPE_SERVICE,    // SERVICEs mainly change the context
+                                    // typeof callback -> EventResponse(*)(Context*)
+                                    // returning OK continues processing other services
+                                    // returning ERR or RESP halts other service execution and
+                                    //  skips all responders 
+    EVENT_RESPONSE_TYPE_RESPONDER,  // RESPONDER will provide a response to send to the client
+                                    // typeof callback -> EventResponse(*)(Context*)
+                                    // returning OK halts responder execution and returns ERR(500)
+                                    // returning ERR or RESP halts other responder execution
+                                    // IF no RESPONDERs return OK, return ERR(404)
+    EVENT_RESPONSE_TYPE_PROCESSER,  // PROCESSORs assist assembly of the response before sending
+                                    // typeof callback -> EventResponse(*)(Context*,HTTPResponse*)
+                                    // returning OK continues processing other processors
+                                    // returning ERR assembles a fallback error response and 
+                                    //  sends it to client
+                                    // returning RESP assembles response and sends it to client
+                                    // IF no PROCESSORs return RESP, fallback response will be
+                                    //  assembled and sent to client
 } HTTPEventResponseType_e;
 
 typedef struct {
@@ -98,6 +121,7 @@ DYNARR(HTTPEvent);
 typedef struct {
     struct HTTPEvent__Dynarr services;
     struct HTTPEvent__Dynarr responders;
+    struct HTTPEvent__Dynarr processors;
 } HTTPServer;
 
 
