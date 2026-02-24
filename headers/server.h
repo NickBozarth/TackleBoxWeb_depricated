@@ -86,7 +86,7 @@ typedef enum {
                                     // returning ERR or RESP halts other service execution and
                                     //  skips all responders 
     EVENT_RESPONSE_TYPE_RESPONDER,  // RESPONDER will provide a response to send to the client
-                                    // typeof callback -> EventResponse(*)(Context*)
+                                    // typeof callback -> EventResponse(*)(const Context*)
                                     // returning OK halts responder execution and returns ERR(500)
                                     // returning ERR or RESP halts other responder execution
                                     // IF no RESPONDERs return OK, return ERR(404)
@@ -96,8 +96,8 @@ typedef enum {
                                     // returning ERR assembles a fallback error response and 
                                     //  sends it to client
                                     // returning RESP assembles response and sends it to client
-                                    // IF no PROCESSORs return RESP, fallback response will be
-                                    //  assembled and sent to client
+                                    // IF no PROCESSORs return RESP, the current server response
+                                    //  is returned to the client
 } HTTPEventResponseType_e;
 
 typedef struct {
@@ -137,12 +137,25 @@ EventResponse event_response_resp(HTTPResponse resp);
 void printresp(HTTPResponse* resp);
 HTTPResponse bufftoresp(char* buffer, size_t buffer_len);
 
-int register_event(
-        HTTPServer* server,
-        HTTPEventDataType_e header_type,       void* header_data,
-        HTTPEventDataType_e value_type,        void* value_data,
-        HTTPEventResponseType_e response_type, EventResponse (*callback)(Context*)
+int register_service(
+    HTTPServer* server,
+    HTTPEventDataType_e header_type,       void* header_data,
+    HTTPEventDataType_e value_type,        void* value_data,
+    EventResponse (*callback)(Context*)
 );
+int register_responder(
+    HTTPServer* server,
+    HTTPEventDataType_e header_type,       void* header_data,
+    HTTPEventDataType_e value_type,        void* value_data,
+    EventResponse (*callback)(const Context*)
+);
+int register_processor(
+    HTTPServer* server,
+    HTTPEventDataType_e header_type,       void* header_data,
+    HTTPEventDataType_e value_type,        void* value_data,
+    EventResponse (*callback)(Context*, HTTPResponse*)
+);
+
 EventResponse eval_events(HTTPServer* server, HTTPResponse* resp, SOCKET* clientSocket);
 
 void send_client(SOCKET clientSocket, char* buf, size_t buf_size);

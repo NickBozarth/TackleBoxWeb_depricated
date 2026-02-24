@@ -104,12 +104,11 @@ HTTPResponse bufftoresp(char *buffer, size_t buffer_len) {
 }
 
 
-
 int register_event(
         HTTPServer* server,
         HTTPEventDataType_e header_type,       void* header_data,
         HTTPEventDataType_e value_type,        void* value_data,
-        HTTPEventResponseType_e response_type, EventResponse (*callback)(Context*)
+        HTTPEventResponseType_e response_type, void* callback
 ) {
    HTTPEvent event = (HTTPEvent) {
         .id = server->responders.item_count + server->services.item_count,
@@ -141,11 +140,56 @@ int register_event(
         break;
         case EVENT_RESPONSE_TYPE_PROCESSER:
             ARR_APPEND(server->processors, event);
+            return event.id;
         break;
    } 
 
    return -1;
 }
+
+int register_service(
+    HTTPServer* server,
+    HTTPEventDataType_e header_type,       void* header_data,
+    HTTPEventDataType_e value_type,        void* value_data,
+    EventResponse (*callback)(Context*)
+) {
+    return register_event(
+        server, 
+        header_type, header_data, 
+        value_type, value_data, 
+        EVENT_RESPONSE_TYPE_SERVICE, (void*)callback
+    );
+}
+
+int register_responder(
+    HTTPServer* server,
+    HTTPEventDataType_e header_type,       void* header_data,
+    HTTPEventDataType_e value_type,        void* value_data,
+    EventResponse (*callback)(const Context*)
+) {
+    return register_event(
+        server, 
+        header_type, header_data, 
+        value_type, value_data, 
+        EVENT_RESPONSE_TYPE_RESPONDER, (void*)callback
+    );
+}
+
+int register_processor(
+    HTTPServer* server,
+    HTTPEventDataType_e header_type,       void* header_data,
+    HTTPEventDataType_e value_type,        void* value_data,
+    EventResponse (*callback)(Context*, HTTPResponse*)
+) {
+    return register_event(
+        server, 
+        header_type, header_data, 
+        value_type, value_data, 
+        EVENT_RESPONSE_TYPE_PROCESSER, (void*)callback
+    );
+}
+
+
 
 
 
@@ -210,65 +254,142 @@ EventResponse eval_events(HTTPServer *server, HTTPResponse *client_resp, SOCKET*
     ContextItem resp_ci = (ContextItem) {
         .name = "response",
         .data = client_resp,
-        .needsDealloc = false,
+        .dealloc_type = NO_FREE,
     };
     ContextItem socket_ci = (ContextItem) {
         .name = "clientSocket",
         .data = clientSocket,
-        .needsDealloc = false,
+        .dealloc_type = NO_FREE,
     };
     ARR_APPEND(context, resp_ci);
     ARR_APPEND(context, socket_ci);
 
 
     // EVENT_RESPONSE_OK will serve as an unset because there is no case that uses OK and returns
+    //  a resonse to the client as returning an OK response to clients will result in a 500 error
     EventResponse server_resp = { .type = EVENT_RESPONSE_OK };
     FOR_ITEM_IN_ARR(server->services, service) {
-        if (event_matches(service, client_resp)) {
-            EventResponse eres = ((EventResponse(*)(Context*))service->resp.callback)(&context);
+        // filter for any matching event
+        if (!event_matches(service, client_resp)) continue;
 
-            switch (eres.type) {
-                case EVENT_RESPONSE_OK:
-                    continue;
-                break;
-                case EVENT_RESPONSE_ERR:
-                case EVENT_RESPONSE_RESPOND:
-                    server_resp = eres;
-                    goto PROCESS_RESP;
-                break;
-            }
+        // form and call the callback attached to the event
+        EventResponse (*event_callback)(Context*);
+        event_callback = (EventResponse(*)(Context*))service->resp.callback;
+        EventResponse eres = event_callback(&context);
+
+        // process the event
+        switch (eres.type) {
+            case EVENT_RESPONSE_OK:
+                continue;
+            break;
+
+            case EVENT_RESPONSE_ERR:
+            case EVENT_RESPONSE_RESPOND:
+                server_resp = eres;
+                goto PROCESS_RESP;
+            break;
+
+            default:
+                server_resp = event_response_err(500);
+                printf("Service event [id : %i] returned with invalid type.\n", service->id);
+                goto PROCESS_RESP;
+            break;
         }
     }
 
 
     FOR_ITEM_IN_ARR(server->responders, responder) {
-        if (event_matches(responder, client_resp)) {
-            EventResponse eres = ((EventResponse(*)(Context*))responder->resp.callback)(&context);
+        if (!event_matches(responder, client_resp)) continue;
 
-            switch (eres.type) {
-                case EVENT_RESPONSE_OK:
-                    server_resp = event_response_err(500);
-                    goto  PROCESS_RESP;
-                break;
-                case EVENT_RESPONSE_ERR:
-                case EVENT_RESPONSE_RESPOND:
-                    server_resp = eres;
-                    goto PROCESS_RESP;
-                break;
-            }
+        EventResponse (*event_callback)(const Context*);
+        event_callback = (EventResponse(*)(const Context*))responder->resp.callback;
+        EventResponse eres = event_callback(&context);
+        switch (eres.type) {
+            case EVENT_RESPONSE_OK:
+                server_resp = event_response_err(500);
+                goto  PROCESS_RESP;
+            break;
 
+            case EVENT_RESPONSE_ERR:
+            case EVENT_RESPONSE_RESPOND:
+                server_resp = eres;
+                goto PROCESS_RESP;
+            break;
+
+            default:
+                server_resp = event_response_err(500);
+                printf("Responder event [id : %i] returned with invalid type.\n", responder->id);
+            break;
         }
     }
 
 
 PROCESS_RESP:
-    FOR_ITEM_IN_ARR(server->processors, processor) {
 
+    switch (server_resp.type) {
+        case EVENT_RESPONSE_RESPOND: // process events
+        break;
+
+        case EVENT_RESPONSE_OK: // treat OK as a page not found error
+            server_resp = event_response_err(404);
+        case EVENT_RESPONSE_ERR:
+            goto CLEANUP;
+        break;
+
+        default:
+            server_resp = event_response_err(500);
+            goto CLEANUP;
+        break;
     }
+
+
+    // TODO unsure about implementing this here, in switch statement, or elsewhere
+    FOR_ITEM_IN_ARR(server->processors, processor) {
+        if (!event_matches(processor, client_resp)) continue;
+        
+        EventResponse (*event_callback)(Context*, HTTPResponse*);
+        event_callback = (EventResponse(*)(Context*, HTTPResponse*))processor->resp.callback;
+        EventResponse eres = event_callback(&context, &server_resp.data.resp);
+        switch (eres.type) {
+            case EVENT_RESPONSE_OK:
+                continue;
+            break;
+
+            case EVENT_RESPONSE_ERR:
+            case EVENT_RESPONSE_RESPOND:
+                server_resp = eres;
+                goto CLEANUP;
+            break;
+
+            default:
+                printf("Processor event [id : %i] returned with invalid type.\n", processor->id);
+                server_resp = event_response_err(500);
+            break;
+        }
+    }
+
+
+
+CLEANUP:
 
     // handle deallocation for context items
     FOR_ITEM_IN_ARR(context, context_item) {
-        if (context_item->needsDealloc) free(context_item->data);
+        switch (context_item->dealloc_type) {
+            case NO_FREE:
+            break;
+            case C_FREE:
+                free(context_item->data);
+            break;
+            case CALLBACK_DEALLOC:
+                context_item->dealloc_function(context_item->data);
+            break;
+            default:
+                printf(
+                        "Context item [%s] does not contain a supported dealloc type.\n", 
+                        context_item->name
+                );
+            break;
+        }
     }
 
     return event_response_err(404);
