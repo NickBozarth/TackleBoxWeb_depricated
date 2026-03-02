@@ -18,7 +18,26 @@ void send_client(SOCKET clientSocket, char *buf, size_t buf_size) {
 }
 
 
-int servefile(SOCKET clientSocket, const char *filePath) {
+
+int servefile_internal(SOCKET client_socket, void** args) {
+    char* file_path = args[0];
+    FILE* fp;
+    char full_file_path[sizeof(SERVE_DIRECTORY) + MAX_FILENAME_LEN];
+    snprintf(full_file_path, sizeof(full_file_path), "%s%s", SERVE_DIRECTORY, file_path);
+
+    fp = fopen(full_file_path, "rb");
+    if (fp == NULL) {
+        fprintf(stderr, "Failed to serve file [%s]\n", full_file_path);
+        return 1;
+    }
+    
+
+
+    return 0;
+}
+
+
+Response servefile(const char *filePath) {
     FILE* fp;
     char fullFilePath[sizeof(SERVE_DIRECTORY) + MAX_FILENAME_LEN];
     snprintf(fullFilePath, sizeof(fullFilePath), "%s%s", SERVE_DIRECTORY, filePath);
@@ -39,7 +58,7 @@ int servefile(SOCKET clientSocket, const char *filePath) {
         sizeof(header),
         
         "HTTP/1.1 200 OK\r\n"
-        "Content-Type: text/plain\r\n"
+        "Content-Type: text/http\r\n"
         "Content-Length: %li\r\n"
         "\r\n",
 
@@ -91,17 +110,13 @@ void serve(HTTPServer* server) {
         char buffer[BUFFER_SIZE] = {};
         size_t bytes_read = read(client_socket, buffer, BUFFER_SIZE);
     
-        HTTPResponse resp = bufftoresp(buffer, bytes_read);
+        HTTPResponse client_resp = bufftoresp(buffer, bytes_read);
         printf("socket ptr -> %p\n", &client_socket);
-        EventResponse eres = eval_events(server, &resp, &client_socket);
-        if (eres.type == EVENT_RESPONSE_ERR) printf("EVENTS ERR %i\n", eres.data.err);
-        else printf("EVENTS RETURNED {\n%s\n}", eres.data.resp.body);
-
+        Response server_resp = eval_events(server, &client_resp, &client_socket);
+        
         char *response = "HTTP/1.1 200 OK\nContent-Type: text/plain\nContent-Length: 12\n\nHello World!";
-
-        printf("response -> %s\n", response);
-        // write(client_socket, response, strlen(response));
-        servefile(client_socket, "index.html");
+        
+        send_resp(client_socket, server_resp);
         close(client_socket);
     }
 }

@@ -12,11 +12,27 @@
 #define MAX_FILENAME_LEN 256
 #define BUFFER_SIZE 1024
 
+#define ERR_RETURN_RESP_TEMPLATE    \
+    "HTTP/1.1 200 OK\n"             \
+    "Content-Type: text/plain\n"    \
+    "Content-Length: 12\n"          \
+    "\n"
+
 #ifdef _WIN32
     // TODO define socket for windows
 #else
     typedef int SOCKET;
 #endif
+
+
+
+typedef enum {
+    DEALLOC_TYPE_NONE = 0,
+    DEALLOC_TYPE_FREE,
+    DEALLOC_TYPE_CALLBACK,
+} DeallocType_e;
+
+typedef void (*DeallocFunction)(void*);
 
 
 
@@ -39,6 +55,38 @@ typedef struct {
 
 
 typedef struct {
+    char* resp;
+    size_t size;
+    DeallocType_e dealloc_type;
+    DeallocFunction dealloc_callback;
+} StringResp;
+
+
+typedef int (*ResponseCallback)(SOCKET*, void**)
+
+typedef struct {
+    enum {
+        RESPONSE_TYPE_NONE = 0,
+        RESPONSE_TYPE_DONE,
+        RESPONSE_TYPE_STRING,
+        RESPONSE_TYPE_HTTP,
+        RESPONSE_TYPE_ERR,
+        RESPONSE_TYPE_CALLBACK,
+    } type;
+
+    union {
+        StringResp string;
+        HTTPResponse http;
+        int err;
+        struct {
+            ResponseCallback callback;
+            void** args;
+        } callback;
+    } data;
+} Response;
+
+
+typedef struct {
     enum {
         EVENT_RESPONSE_OK,      // event executed ok and will continue execution
         EVENT_RESPONSE_ERR,     // event failed execution and server will respond with err
@@ -48,20 +96,18 @@ typedef struct {
     union {
         void* ok;
         int err;
-        HTTPResponse resp;
+        Response resp;
     } data;
 } EventResponse;
+
+
 
 
 typedef struct {
     char* name;
     void* data;
-    enum {
-        NO_FREE = 0,
-        C_FREE,
-        CALLBACK_DEALLOC
-    } dealloc_type;
-    void (*dealloc_function)(void*);
+    DeallocType_e dealloc_type;
+    DeallocFunction dealloc_callback;
 } ContextItem;
 
 typedef DYNARR(ContextItem) Context;
@@ -79,6 +125,9 @@ typedef struct {
 } HTTPEventData;
 
 
+
+
+
 typedef enum {
     EVENT_RESPONSE_TYPE_SERVICE,    // SERVICEs mainly change the context
                                     // typeof callback -> EventResponse(*)(Context*)
@@ -91,13 +140,12 @@ typedef enum {
                                     // returning ERR or RESP halts other responder execution
                                     // IF no RESPONDERs return OK, return ERR(404)
     EVENT_RESPONSE_TYPE_PROCESSER,  // PROCESSORs assist assembly of the response before sending
-                                    // typeof callback -> EventResponse(*)(Context*,HTTPResponse*)
-                                    // returning OK continues processing other processors
-                                    // returning ERR assembles a fallback error response and 
-                                    //  sends it to client
-                                    // returning RESP assembles response and sends it to client
-                                    // IF no PROCESSORs return RESP, the current server response
-                                    //  is returned to the client
+                                    // typeof callback -> StringResp(*)(Context*,HTTPResponse*)
+                                    // returning StringResp.resp == NULL will return a fallback
+                                    //  error page to client
+                                    // returning StringResp.resp != NULL will return
+                                    //  StringResp.resp to client then dealloc the resp object
+                                    //  according to StringResp.dealloc_type
 } HTTPEventResponseType_e;
 
 typedef struct {
@@ -129,37 +177,42 @@ typedef struct {
 
 
 
-
 EventResponse event_response_ok();
 EventResponse event_response_err(int err);
-EventResponse event_response_resp(HTTPResponse resp);
+EventResponse event_response_resp(Response resp);
 
 void printresp(HTTPResponse* resp);
 HTTPResponse bufftoresp(char* buffer, size_t buffer_len);
+
+typedef EventResponse (*ServiceCallback)(Context*);
+typedef EventResponse (*ResponderCallback)(const Context*);
+typedef Response (*ProcessorCallback)(Context*, Response*);
 
 int register_service(
     HTTPServer* server,
     HTTPEventDataType_e header_type,       void* header_data,
     HTTPEventDataType_e value_type,        void* value_data,
-    EventResponse (*callback)(Context*)
+    ServiceCallback callback
 );
 int register_responder(
     HTTPServer* server,
     HTTPEventDataType_e header_type,       void* header_data,
     HTTPEventDataType_e value_type,        void* value_data,
-    EventResponse (*callback)(const Context*)
+    ResponderCallback callback
 );
 int register_processor(
     HTTPServer* server,
     HTTPEventDataType_e header_type,       void* header_data,
     HTTPEventDataType_e value_type,        void* value_data,
-    EventResponse (*callback)(Context*, HTTPResponse*)
+    ProcessorCallback callback
 );
 
-EventResponse eval_events(HTTPServer* server, HTTPResponse* resp, SOCKET* clientSocket);
+Response servefile(const char* filePath);
 
+Response eval_events(HTTPServer* server, HTTPResponse* resp, SOCKET* clientSocket);
+
+void send_resp(SOCKET clientSocket, Response resp);
 void send_client(SOCKET clientSocket, char* buf, size_t buf_size);
-int servefile(SOCKET clientSocket, const char* filePath);
 void serve(HTTPServer* server);
 
 // void printresp(HTTPResponse* resp);
