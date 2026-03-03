@@ -19,7 +19,7 @@ void send_client(SOCKET clientSocket, char *buf, size_t buf_size) {
 
 
 
-int servefile_internal(Context* context) {
+int servefile_internal(struct HTTPHeader__Dynarr headers, Context* context) {
     ContextItem* socket_ci = ARR_GET(*context, ci, strcmp(ci->name, "clientSocket") == 0);
     if (socket_ci == NULL) return 1;
     SOCKET client_socket = *((SOCKET*)socket_ci->data);
@@ -79,7 +79,7 @@ Response servefile(const char* filepath, Context* context) {
 
     return (Response) {
         .type = RESPONSE_TYPE_CALLBACK,
-        .data.callback = servefile_internal
+        .body.callback = servefile_internal
     };
 }
 

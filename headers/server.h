@@ -50,13 +50,14 @@ typedef struct {
     char* value;
 } HTTPHeader;
 
+DYNARR(HTTPHeader);
 
 typedef struct {
     char* method;
     char* path;
     char* protocol;
 
-    DYNARR(HTTPHeader) headers;
+    struct HTTPHeader__Dynarr headers;
 
     char* body;
     size_t body_len;
@@ -70,25 +71,26 @@ typedef struct {
     DeallocFunction dealloc_callback;
 } StringResp;
 
-typedef int (*ResponseCallback)(Context*);
+typedef int (*ResponseCallback)(struct HTTPHeader__Dynarr, Context*);
 
 typedef struct {
     enum {
         RESPONSE_TYPE_NONE = 0,
-        RESPONSE_TYPE_DONE,
-        RESPONSE_TYPE_STRING,
-        RESPONSE_TYPE_HTTP,
         RESPONSE_TYPE_ERR,
+        RESPONSE_TYPE_STR,
         RESPONSE_TYPE_CALLBACK,
     } type;
 
+    struct HTTPHeader__Dynarr headers;
+
     union {
-        StringResp string;
-        HTTPResponse http;
+        void* none;
         int err;
+        StringResp str;
         ResponseCallback callback;
-    } data;
+    } body;
 } Response;
+
 
 
 typedef struct {
@@ -98,11 +100,7 @@ typedef struct {
         EVENT_RESPONSE_RESPOND, // event created response and server will respond to client
     } type;
 
-    union {
-        void* ok;
-        int err;
-        Response resp;
-    } data;
+    Response resp;
 } EventResponse;
 
 

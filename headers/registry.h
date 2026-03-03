@@ -2,6 +2,7 @@
 #include "page_index.h"
 #include "services/key_manager.h"
 #include "responders/test_page.h"
+#include "responders/foo.h"
 #include "processors/default_processor.h"
 
 void register_all_events(HTTPServer* server) {
@@ -17,6 +18,13 @@ void register_all_events(HTTPServer* server) {
         EVENT_DATA_TYPE_MATCH_STR, "path",
         EVENT_DATA_TYPE_MATCH_STR, "/",
         test_page_callback
+    );
+
+    register_responder(
+        server,
+        EVENT_DATA_TYPE_MATCH_STR, "path",
+        EVENT_DATA_TYPE_MATCH_STR, "/foo",
+        foo_callback
     );
 
     register_processor(

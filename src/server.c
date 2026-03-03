@@ -8,21 +8,23 @@
 EventResponse event_response_ok() {
     return (EventResponse) {
         .type = EVENT_RESPONSE_OK,
-        .data.ok = NULL
     };
 }
 
 EventResponse event_response_err(int err) {
     return (EventResponse) {
         .type = EVENT_RESPONSE_ERR,
-        .data.err = err,
+        .resp = (Response) {
+            .type = RESPONSE_TYPE_ERR,
+            .body.err = err,
+        }
     };
 }
 
 EventResponse event_response_resp(Response resp) {
     return (EventResponse) {
         .type = EVENT_RESPONSE_RESPOND,
-        .data.resp = resp
+        .resp = resp
     };
 }
 
@@ -353,7 +355,7 @@ PROCESS_RESP:
 
         ProcessorCallback event_callback;
         event_callback = (ProcessorCallback)processor->resp.callback;
-        Response sres = event_callback(context, &server_eres.data.resp);
+        Response sres = event_callback(context, &server_eres.resp);
 
         if (sres.type != RESPONSE_TYPE_NONE) {
             server_sres = sres;
@@ -487,37 +489,28 @@ void send_resp(SOCKET clientSocket, Response resp, Context* context) {
     switch (resp.type) {
         case RESPONSE_TYPE_NONE:
             resp.type = RESPONSE_TYPE_ERR;
-            resp.data.err = 500;
+            resp.body.err = 500;
         case RESPONSE_TYPE_ERR:
-            server_resp = errresptostrresp(resp.data.err);
+            server_resp = errresptostrresp(resp.body.err);
         break;
          
-        case RESPONSE_TYPE_DONE:
-            return;
-        break;
-
-        case RESPONSE_TYPE_STRING:
-            server_resp = resp.data.string;
-        break;
-
-        case RESPONSE_TYPE_HTTP:
-            server_resp = httpresptostrresp(&resp.data.http);
+        case RESPONSE_TYPE_STR:
+            server_resp = resp.body.str;
         break;
 
         case RESPONSE_TYPE_CALLBACK:
-            int err = resp.data.callback(context);
+            int err = resp.body.callback(resp.headers, context);
             if (err == 0) return;
             resp.type = RESPONSE_TYPE_ERR;
-            resp.data.err = err;
+            resp.body.err = err;
         break;
 
-        /*
+        // just in case a malformed response makes it here
         default:
             resp.type = RESPONSE_TYPE_ERR;
-            resp.data.err = 500;
-            server_resp = errresptostrresp(resp.data.err);
+            resp.body.err = 500;
+            server_resp = errresptostrresp(resp.body.err);
         break;
-        */
     }
     
     server_resp.size = 0;
