@@ -35,6 +35,15 @@ typedef enum {
 typedef void (*DeallocFunction)(void*);
 
 
+typedef struct {
+    char* name;
+    void* data;
+    DeallocType_e dealloc_type;
+    DeallocFunction dealloc_callback;
+} ContextItem;
+
+typedef DYNARR(ContextItem) Context;
+
 
 typedef struct {
     char* name;
@@ -61,8 +70,7 @@ typedef struct {
     DeallocFunction dealloc_callback;
 } StringResp;
 
-
-typedef int (*ResponseCallback)(SOCKET*, void**)
+typedef int (*ResponseCallback)(Context*);
 
 typedef struct {
     enum {
@@ -78,10 +86,7 @@ typedef struct {
         StringResp string;
         HTTPResponse http;
         int err;
-        struct {
-            ResponseCallback callback;
-            void** args;
-        } callback;
+        ResponseCallback callback;
     } data;
 } Response;
 
@@ -103,14 +108,7 @@ typedef struct {
 
 
 
-typedef struct {
-    char* name;
-    void* data;
-    DeallocType_e dealloc_type;
-    DeallocFunction dealloc_callback;
-} ContextItem;
 
-typedef DYNARR(ContextItem) Context;
 
 
 typedef enum {                      // typeof data
@@ -177,6 +175,7 @@ typedef struct {
 
 
 
+
 EventResponse event_response_ok();
 EventResponse event_response_err(int err);
 EventResponse event_response_resp(Response resp);
@@ -185,7 +184,7 @@ void printresp(HTTPResponse* resp);
 HTTPResponse bufftoresp(char* buffer, size_t buffer_len);
 
 typedef EventResponse (*ServiceCallback)(Context*);
-typedef EventResponse (*ResponderCallback)(const Context*);
+typedef EventResponse (*ResponderCallback)(Context*);
 typedef Response (*ProcessorCallback)(Context*, Response*);
 
 int register_service(
@@ -207,11 +206,11 @@ int register_processor(
     ProcessorCallback callback
 );
 
-Response servefile(const char* filePath);
+Response servefile(const char* filePath, Context* context);
 
-Response eval_events(HTTPServer* server, HTTPResponse* resp, SOCKET* clientSocket);
+Response eval_events(HTTPServer* server, HTTPResponse* resp, SOCKET* clientSocket, Context*);
 
-void send_resp(SOCKET clientSocket, Response resp);
+void send_resp(SOCKET clientSocket, Response resp, Context* context);
 void send_client(SOCKET clientSocket, char* buf, size_t buf_size);
 void serve(HTTPServer* server);
 

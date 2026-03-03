@@ -19,32 +19,21 @@ void send_client(SOCKET clientSocket, char *buf, size_t buf_size) {
 
 
 
-int servefile_internal(SOCKET client_socket, void** args) {
-    char* file_path = args[0];
+int servefile_internal(Context* context) {
+    ContextItem* socket_ci = ARR_GET(*context, ci, strcmp(ci->name, "clientSocket") == 0);
+    if (socket_ci == NULL) return 1;
+    SOCKET client_socket = *((SOCKET*)socket_ci->data);
+    ContextItem* filepath_ci = ARR_GET(*context, ci, strcmp(ci->name, "serve_file") == 0);
+    if (filepath_ci == NULL) return 2;
+    char* filepath = (char*)filepath_ci->data;
+
     FILE* fp;
     char full_file_path[sizeof(SERVE_DIRECTORY) + MAX_FILENAME_LEN];
-    snprintf(full_file_path, sizeof(full_file_path), "%s%s", SERVE_DIRECTORY, file_path);
+    snprintf(full_file_path, sizeof(full_file_path), "%s%s", SERVE_DIRECTORY, filepath);
 
     fp = fopen(full_file_path, "rb");
     if (fp == NULL) {
-        fprintf(stderr, "Failed to serve file [%s]\n", full_file_path);
-        return 1;
-    }
-    
-
-
-    return 0;
-}
-
-
-Response servefile(const char *filePath) {
-    FILE* fp;
-    char fullFilePath[sizeof(SERVE_DIRECTORY) + MAX_FILENAME_LEN];
-    snprintf(fullFilePath, sizeof(fullFilePath), "%s%s", SERVE_DIRECTORY, filePath);
-
-    fp = fopen(fullFilePath, "rb");
-    if (fp == NULL) {
-        fprintf(stderr, "Failed to open file [%s]\n", fullFilePath);
+        fprintf(stderr, "Failed to open file [%s]\n", full_file_path);
         return 1;
     }
 
@@ -58,23 +47,64 @@ Response servefile(const char *filePath) {
         sizeof(header),
         
         "HTTP/1.1 200 OK\r\n"
-        "Content-Type: text/http\r\n"
+        "Content-Type: text/html\r\n"
         "Content-Length: %li\r\n"
         "\r\n",
 
         fileSize
     );
 
-    send_client(clientSocket, header, headerLen);
+    send_client(client_socket, header, headerLen);
 
     char buffer[BUFFER_SIZE];
     size_t bytesRead;
     while((bytesRead = fread(buffer, 1, sizeof(buffer), fp)) > 0) {
-        send_client(clientSocket, buffer, bytesRead);
+        send_client(client_socket, buffer, bytesRead);
     }
 
     fclose(fp);
     return 0;
+
+}
+
+
+
+Response servefile(const char* filepath, Context* context) {
+    ContextItem filepath_ci = (ContextItem) {
+        .name = "serve_file",
+        .data = (void*)filepath,
+        .dealloc_type = DEALLOC_TYPE_NONE
+    };
+    ARR_APPEND(*context, filepath_ci);
+
+    return (Response) {
+        .type = RESPONSE_TYPE_CALLBACK,
+        .data.callback = servefile_internal
+    };
+}
+
+
+void free_context(Context* context) {
+    // handle deallocation for context items
+    FOR_ITEM_IN_ARR(*context, context_item) {
+        switch (context_item->dealloc_type) {
+            case DEALLOC_TYPE_NONE:
+            break;
+            case DEALLOC_TYPE_FREE:
+                free(context_item->data);
+            break;
+            case DEALLOC_TYPE_CALLBACK:
+                context_item->dealloc_callback(context_item->data);
+            break;
+            default:
+                printf(
+                        "Context item [%s] does not contain a supported dealloc type.\n", 
+                        context_item->name
+                );
+            break;
+        }
+    }
+
 }
 
 void serve(HTTPServer* server) {
@@ -112,11 +142,13 @@ void serve(HTTPServer* server) {
     
         HTTPResponse client_resp = bufftoresp(buffer, bytes_read);
         printf("socket ptr -> %p\n", &client_socket);
-        Response server_resp = eval_events(server, &client_resp, &client_socket);
+        Context context = {};
+        Response server_resp = eval_events(server, &client_resp, &client_socket, &context);
         
-        char *response = "HTTP/1.1 200 OK\nContent-Type: text/plain\nContent-Length: 12\n\nHello World!";
+        // char *response = "HTTP/1.1 200 OK\nContent-Type: text/plain\nContent-Length: 12\n\nHello World!";
         
-        send_resp(client_socket, server_resp);
+        send_resp(client_socket, server_resp, &context);
+        free_context(&context);
         close(client_socket);
     }
 }

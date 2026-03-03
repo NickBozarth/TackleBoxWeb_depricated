@@ -249,14 +249,16 @@ bool event_matches(HTTPEvent* event, HTTPResponse* resp) {
 }
 
 
-Response eval_events(HTTPServer *server, HTTPResponse *client_resp, SOCKET* clientSocket) {
+Response eval_events(
+        HTTPServer *server, HTTPResponse *client_resp, 
+        SOCKET* clientSocket, Context* context
+) {
     
     printf("-----------------------------------\n");
     printresp(client_resp);
     printf("-----------------------------------\n");
 
 
-    Context context = {};
     ContextItem resp_ci = (ContextItem) {
         .name = "response",
         .data = client_resp,
@@ -267,8 +269,8 @@ Response eval_events(HTTPServer *server, HTTPResponse *client_resp, SOCKET* clie
         .data = clientSocket,
         .dealloc_type = DEALLOC_TYPE_NONE,
     };
-    ARR_APPEND(context, resp_ci);
-    ARR_APPEND(context, socket_ci);
+    ARR_APPEND(*context, resp_ci);
+    ARR_APPEND(*context, socket_ci);
 
 
     // EVENT_RESPONSE_OK will serve as an unset because there is no case that uses OK and returns
@@ -281,7 +283,7 @@ Response eval_events(HTTPServer *server, HTTPResponse *client_resp, SOCKET* clie
         // form and call the callback attached to the event
         ServiceCallback event_callback;
         event_callback = (ServiceCallback)service->resp.callback;
-        EventResponse eres = event_callback(&context);
+        EventResponse eres = event_callback(context);
 
         // process the event
         switch (eres.type) {
@@ -308,8 +310,8 @@ Response eval_events(HTTPServer *server, HTTPResponse *client_resp, SOCKET* clie
         if (!event_matches(responder, client_resp)) continue;
 
         ResponderCallback event_callback;
-        event_callback = (EventResponse(*)(const Context*))responder->resp.callback;
-        EventResponse eres = event_callback(&context);
+        event_callback = (ResponderCallback)responder->resp.callback;
+        EventResponse eres = event_callback(context);
         switch (eres.type) {
             case EVENT_RESPONSE_OK:
                 server_eres = event_response_err(500);
@@ -351,7 +353,7 @@ PROCESS_RESP:
 
         ProcessorCallback event_callback;
         event_callback = (ProcessorCallback)processor->resp.callback;
-        Response sres = event_callback(&context, &server_eres.data.resp);
+        Response sres = event_callback(context, &server_eres.data.resp);
 
         if (sres.type != RESPONSE_TYPE_NONE) {
             server_sres = sres;
@@ -360,26 +362,7 @@ PROCESS_RESP:
     }
 
 
-    // handle deallocation for context items
-    FOR_ITEM_IN_ARR(context, context_item) {
-        switch (context_item->dealloc_type) {
-            case DEALLOC_TYPE_NONE:
-            break;
-            case DEALLOC_TYPE_FREE:
-                free(context_item->data);
-            break;
-            case DEALLOC_TYPE_CALLBACK:
-                context_item->dealloc_callback(context_item->data);
-            break;
-            default:
-                printf(
-                        "Context item [%s] does not contain a supported dealloc type.\n", 
-                        context_item->name
-                );
-            break;
-        }
-    }
-
+    
     return server_sres;
 }
 
@@ -497,7 +480,7 @@ StringResp errresptostrresp(int err) {
 }
 
 
-void send_resp(SOCKET clientSocket, Response resp) {
+void send_resp(SOCKET clientSocket, Response resp, Context* context) {
     printf("sending response with type %i\n", resp.type);
     
     StringResp server_resp = {};
@@ -521,11 +504,20 @@ void send_resp(SOCKET clientSocket, Response resp) {
             server_resp = httpresptostrresp(&resp.data.http);
         break;
 
+        case RESPONSE_TYPE_CALLBACK:
+            int err = resp.data.callback(context);
+            if (err == 0) return;
+            resp.type = RESPONSE_TYPE_ERR;
+            resp.data.err = err;
+        break;
+
+        /*
         default:
             resp.type = RESPONSE_TYPE_ERR;
             resp.data.err = 500;
             server_resp = errresptostrresp(resp.data.err);
         break;
+        */
     }
     
     server_resp.size = 0;

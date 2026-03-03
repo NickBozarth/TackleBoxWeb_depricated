@@ -1,7 +1,12 @@
 #include "server.h"
 #include <stdio.h>
 
-EventResponse test_page_callback(const Context* context) {
+EventResponse test_page_callback(Context *context) {
+    Response resp = servefile("index.html", context);
+    return event_response_resp(resp);
+}
+
+EventResponse test_page_callback1(const Context* context) {
     HTTPResponse httpresp = {};
     httpresp.method = "HTTP/1.1";
     httpresp.path = "200";
