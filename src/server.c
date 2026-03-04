@@ -355,7 +355,7 @@ PROCESS_RESP:
 
         ProcessorCallback event_callback;
         event_callback = (ProcessorCallback)processor->resp.callback;
-        Response sres = event_callback(context, &server_eres.resp);
+        Response sres = event_callback(context, server_eres.resp);
 
         if (sres.type != RESPONSE_TYPE_NONE) {
             server_sres = sres;
@@ -398,7 +398,7 @@ size_t gethttprespsize(HTTPResponse* httpresp) {
 
 
 #define CAT(STR) strncat(resp_buf, STR, resp_size - strlen(resp_buf) - 1)
-StringResp httpresptostrresp(HTTPResponse* httpresp) {
+StringObject httpresptostrresp(HTTPResponse* httpresp) {
     size_t resp_size = gethttprespsize(httpresp);
     char* resp_buf = (char*)malloc(resp_size * sizeof(char));
 
@@ -422,8 +422,8 @@ StringResp httpresptostrresp(HTTPResponse* httpresp) {
         CAT(httpresp->body);
     }
 
-    return (StringResp) {
-        .resp = resp_buf,
+    return (StringObject) {
+        .str = resp_buf,
         .dealloc_type = DEALLOC_TYPE_FREE
     };
 }
@@ -446,7 +446,7 @@ char* errtostr(int err) {
     return resp;
 }
 
-StringResp errresptostrresp(int err) {
+StringObject errresptostrresp(int err) {
     const char* resp_template =
         "HTTP/1.1 %i %s\r\n"
         "Content-Type: text/plain\r\n"
@@ -475,8 +475,8 @@ StringResp errresptostrresp(int err) {
 
     free(body_buf);
 
-    return (StringResp) {
-        .resp = resp_buf,
+    return (StringObject) {
+        .str = resp_buf,
         .dealloc_type = DEALLOC_TYPE_FREE
     };
 }
@@ -485,7 +485,7 @@ StringResp errresptostrresp(int err) {
 void send_resp(SOCKET clientSocket, Response resp, Context* context) {
     printf("sending response with type %i\n", resp.type);
     
-    StringResp server_resp = {};
+    StringObject server_resp = {};
     switch (resp.type) {
         case RESPONSE_TYPE_NONE:
             resp.type = RESPONSE_TYPE_ERR;
@@ -515,20 +515,46 @@ void send_resp(SOCKET clientSocket, Response resp, Context* context) {
     
     server_resp.size = 0;
 
-    if (server_resp.size == 0) server_resp.size = strlen(server_resp.resp);
+    if (server_resp.size == 0) server_resp.size = strlen(server_resp.str);
 
     printf("=====================================================\n");
-    printf("%s\n", server_resp.resp);
+    printf("%s\n", server_resp.str);
     printf("=====================================================\n");
-    send_client(clientSocket, server_resp.resp, server_resp.size);
+    send_client(clientSocket, server_resp.str, server_resp.size);
 }
 
 
 
 
 
+void dealloc_httpheader_name(void* headerptr) {
+    HTTPHeader* header = (HTTPHeader*)headerptr;
+    free(header->name);
+}
+void dealloc_httpheader_value(void* headerptr) {
+    HTTPHeader* header = (HTTPHeader*)headerptr;
+    free(header->value);
+}
+void dealloc_httpheader_both(void* headerptr) {
+    HTTPHeader* header = (HTTPHeader*)headerptr;
+    free(header->name);
+    free(header->value);
+}
 
 
 
+void dealloc_stringobject(void* strptr) {
+    StringObject* str = (StringObject*)strptr;
+    free(str->str);
+}
 
 
+StringObject stringwithsize_h(size_t size) {
+    char* str = (char*)calloc(size, 1);
+
+    return (StringObject) {
+        .str = str,
+        .size = size,
+        .dealloc_type = DEALLOC_TYPE_FREE
+    };
+}

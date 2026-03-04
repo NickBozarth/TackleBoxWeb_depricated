@@ -1,5 +1,7 @@
 #include <asm-generic/socket.h>
 #include <stdbool.h>
+#include <stddef.h>
+#include <strings.h>
 #ifndef _WIN32
 
 #include "server.h"
@@ -16,8 +18,6 @@ void send_client(SOCKET clientSocket, char *buf, size_t buf_size) {
     printf("sent client %lu bytes\n", buf_size);
     write(clientSocket, buf, buf_size);
 }
-
-
 
 int servefile_internal(struct HTTPHeader__Dynarr headers, Context* context) {
     ContextItem* socket_ci = ARR_GET(*context, ci, strcmp(ci->name, "clientSocket") == 0);
@@ -41,18 +41,72 @@ int servefile_internal(struct HTTPHeader__Dynarr headers, Context* context) {
     long fileSize = ftell(fp);
     fseek(fp, 0, SEEK_SET);
 
-    char header[512];
+    char* method = "HTTP/1.1";
+    char* code = "200";
+    char* status = "OK";
+    char* content_type = "text/html";
+
+    struct HTTPHeader__Dynarr other_headers = {};
+    size_t other_headers_str_len = 1;
+
+    FOR_ITEM_IN_ARR(headers, header) {
+        if      (strcasecmp(header->name, "Method") == 0)        method       = header->value;
+        else if (strcasecmp(header->name, "Code") == 0)          code         = header->value;
+        else if (strcasecmp(header->name, "Status") == 0)        status       = header->value;
+        else if (strcasecmp(header->name, "Content-Type") == 0)  content_type = header->value;
+        else {
+            // add [name] + [": "] + [value] + ["\r\n"]
+            other_headers_str_len += strlen(header->name) + strlen(header->value) + 2 + 2;
+            ARR_APPEND(other_headers, *header);
+        }
+    }
+
+    StringObject other_headers_str = stringwithsize_h(other_headers_str_len);
+    size_t actual_other_headers_len = 0;
+    FOR_ITEM_IN_ARR(other_headers, header) {
+        StringObject dummy_str = stringwithsize_h(other_headers_str_len);
+        strncpy(dummy_str.str, other_headers_str.str, other_headers_str_len);
+        actual_other_headers_len = snprintf(
+                other_headers_str.str, other_headers_str_len, 
+                "%s%s: %s\r\n", 
+                dummy_str.str,
+                header->name, header->value
+        );
+
+        dealloc_stringobject(&dummy_str);
+
+        printf("OTHER HEADERS STR %s\n", other_headers_str.str);
+    }
+
+    printf("OTHER HEADERS [[]\n%s\n[]%lu\n%lu]", other_headers_str.str, actual_other_headers_len, other_headers.item_count);
+
+
+    char header[BUFFER_SIZE];
     int headerLen = snprintf(
         header,
         sizeof(header),
         
-        "HTTP/1.1 200 OK\r\n"
-        "Content-Type: text/html\r\n"
+        "%s %s %s\r\n"
+        "Content-Type: %s\r\n"
         "Content-Length: %li\r\n"
+        "%s"
         "\r\n",
 
-        fileSize
+        method, code, status,
+        content_type,
+        fileSize,
+        other_headers_str.str
     );
+
+
+    printf(":::::::::::::::::::::::::::::::::::::::::::::\n");
+    for (char* c = header; *c != '\0'; c++) {
+        if (*c == '\n') printf("\\n\n");
+        else if (*c == '\r') printf("\\r");
+        else printf("%c", *c);
+    }
+    printf("\n:::::::::::::::::::::::::::::::::::::::::::::\n");
+
 
     send_client(client_socket, header, headerLen);
 
@@ -62,6 +116,7 @@ int servefile_internal(struct HTTPHeader__Dynarr headers, Context* context) {
         send_client(client_socket, buffer, bytesRead);
     }
 
+    dealloc_stringobject(&other_headers_str);
     fclose(fp);
     return 0;
 
@@ -144,9 +199,7 @@ void serve(HTTPServer* server) {
         printf("socket ptr -> %p\n", &client_socket);
         Context context = {};
         Response server_resp = eval_events(server, &client_resp, &client_socket, &context);
-        
-        // char *response = "HTTP/1.1 200 OK\nContent-Type: text/plain\nContent-Length: 12\n\nHello World!";
-        
+
         send_resp(client_socket, server_resp, &context);
         free_context(&context);
         close(client_socket);

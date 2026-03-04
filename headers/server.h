@@ -48,6 +48,8 @@ typedef DYNARR(ContextItem) Context;
 typedef struct {
     char* name;
     char* value;
+    DeallocType_e dealloc_type;
+    DeallocFunction dealloc_callback;
 } HTTPHeader;
 
 DYNARR(HTTPHeader);
@@ -65,11 +67,11 @@ typedef struct {
 
 
 typedef struct {
-    char* resp;
+    char* str;
     size_t size;
     DeallocType_e dealloc_type;
     DeallocFunction dealloc_callback;
-} StringResp;
+} StringObject;
 
 typedef int (*ResponseCallback)(struct HTTPHeader__Dynarr, Context*);
 
@@ -86,7 +88,7 @@ typedef struct {
     union {
         void* none;
         int err;
-        StringResp str;
+        StringObject str;
         ResponseCallback callback;
     } body;
 } Response;
@@ -183,7 +185,7 @@ HTTPResponse bufftoresp(char* buffer, size_t buffer_len);
 
 typedef EventResponse (*ServiceCallback)(Context*);
 typedef EventResponse (*ResponderCallback)(Context*);
-typedef Response (*ProcessorCallback)(Context*, Response*);
+typedef Response (*ProcessorCallback)(Context*, Response);
 
 int register_service(
     HTTPServer* server,
@@ -211,5 +213,15 @@ Response eval_events(HTTPServer* server, HTTPResponse* resp, SOCKET* clientSocke
 void send_resp(SOCKET clientSocket, Response resp, Context* context);
 void send_client(SOCKET clientSocket, char* buf, size_t buf_size);
 void serve(HTTPServer* server);
+
+
+
+void dealloc_httpheader_name(void*);
+void dealloc_httpheader_value(void*);
+void dealloc_httpheader_both(void*);
+
+void dealloc_stringobject(void*);
+StringObject stringwithsize_h(size_t size);
+
 
 // void printresp(HTTPResponse* resp);

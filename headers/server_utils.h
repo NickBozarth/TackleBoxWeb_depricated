@@ -1,5 +1,9 @@
+#pragma once
+
 #include "server.h"
 
+
+// TODO add other options for cookies, ex: Secure, HTTPOnly, SameSite
 typedef struct {
     char* key;
     char* value;
