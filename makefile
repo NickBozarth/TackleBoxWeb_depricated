@@ -9,7 +9,7 @@ else
 	MKDIR = mkdir -p $(TARGETDIR)
 	FIX_PATH = $1
 	TARGET_EXEC = $(TARGET)
-LDFLAGS = 
+LDFLAGS = -lsqlite3 
 endif
 
 

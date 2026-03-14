@@ -1,51 +1,17 @@
 #include "server.h"
 #include "server_utils.h"
 #include <stdio.h>
+#include <sqlite3.h>
 
 EventResponse test_page_callback(Context *context) {
-    
-    {
+    Cookies cookies = context_to_cookies(context);
+    Cookie* client_id_cookie = get_cookie(cookies, "client-id");
+    if(client_id_cookie == NULL)
+        set_cookie(context, "client-id", "setting-cookie", COOKIE_DEALLOC_TYPE_NONE);
 
-        Cookie* cookie = (Cookie*)malloc(sizeof(Cookie));
-        cookie->key = "CLIENT_KEY";
-        cookie->value = "CLIENT_KEY_HERE";
-
-        ContextItem cookie_ci = (ContextItem) {
-            .name = "Set-Cookie",
-            .data = cookie,
-            .dealloc_type = DEALLOC_TYPE_FREE
-        };
-        ARR_APPEND(*context, cookie_ci);
-    }
-
-    {
-        Cookie* cookie = (Cookie*)malloc(sizeof(Cookie));
-        cookie->key = "CLIENT_KEY2";
-        cookie->value = "CLIENT_KEY_HERE1223123";
-
-        ContextItem cookie_ci = (ContextItem) {
-            .name = "Set-Cookie",
-            .data = cookie,
-            .dealloc_type = DEALLOC_TYPE_FREE
-        };
-        ARR_APPEND(*context, cookie_ci);
-    }
-
-    {
-        Cookie* cookie = (Cookie*)malloc(sizeof(Cookie));
-        cookie->key = "CLIENT_KEY3";
-        cookie->value = "cookie";
-
-        ContextItem cookie_ci = (ContextItem) {
-            .name = "Set-Cookie",
-            .data = cookie,
-            .dealloc_type = DEALLOC_TYPE_FREE
-        };
-        ARR_APPEND(*context, cookie_ci);
-    }
+    print_context_keys(context);
 
 
     Response resp = servefile("index.html", context);
     return event_response_resp(resp);
 }
-

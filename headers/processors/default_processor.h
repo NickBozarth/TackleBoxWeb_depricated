@@ -45,7 +45,7 @@ int set_headers(Context* context, Response* resp) {
 
 
 Response default_processor_callback(Context* context, Response resp) {
-    // set_cookies(context, &resp);
+    set_cookies(context, &resp);
     set_headers(context, &resp);
     return resp;
 }

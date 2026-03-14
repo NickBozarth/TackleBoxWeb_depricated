@@ -99,14 +99,6 @@ int servefile_internal(struct HTTPHeader__Dynarr headers, Context* context) {
     );
 
 
-    printf(":::::::::::::::::::::::::::::::::::::::::::::\n");
-    for (char* c = header; *c != '\0'; c++) {
-        if (*c == '\n') printf("\\n\n");
-        else if (*c == '\r') printf("\\r");
-        else printf("%c", *c);
-    }
-    printf("\n:::::::::::::::::::::::::::::::::::::::::::::\n");
-
 
     send_client(client_socket, header, headerLen);
 

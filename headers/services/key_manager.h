@@ -6,10 +6,10 @@
 EventResponse service_key_manager_callback(Context* context) {
     Cookies cookies = context_to_cookies(context);
     
-    Cookie* clientId = get_cookie(cookies, "clientId");
-    Cookie* serverPublicKey = get_cookie(cookies, "serverPublicKey");
-
-    if (clientId == NULL || serverPublicKey == NULL) {
+    Cookie* serverPublicKey = get_cookie(cookies, "server-public-key");
+    if (serverPublicKey == NULL) {
+        
+        set_cookie(context, "server-public-key", "insert-public-key-here", COOKIE_DEALLOC_TYPE_NONE);
     };
 
     

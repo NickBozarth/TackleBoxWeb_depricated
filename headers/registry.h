@@ -1,15 +1,28 @@
 #include "server.h"
 #include "page_index.h"
+
+
+
 #include "services/key_manager.h"
+#include "services/database.h"
+
 #include "responders/test_page.h"
 #include "responders/foo.h"
+
 #include "processors/default_processor.h"
 
 void register_all_events(HTTPServer* server) {
     register_service(
         server,
-        EVENT_DATA_TYPE_MATCH_ALL,   NULL,
-        EVENT_DATA_TYPE_MATCH_ALL,   NULL,
+        EVENT_DATA_TYPE_MATCH_ALL, NULL,
+        EVENT_DATA_TYPE_MATCH_ALL, NULL,
+        database_service
+    );
+
+    register_service(
+        server,
+        EVENT_DATA_TYPE_MATCH_ALL, NULL,
+        EVENT_DATA_TYPE_MATCH_ALL, NULL,
         service_key_manager_callback
     );
 
