@@ -69,16 +69,20 @@ StrKeyset keyset_to_strkeyset(RSA_Keyset *keyset) {
         long len = BIO_get_mem_data(pub_bio, &data);
         memcpy(ret.pubkey, data, len);
         ret.pubkey[len] = '\0';
+    } else {
+        ret.err = 1;
     }
 
     if (
-        ret.pubkey != NULL && // you can check if ret has failed by ret.privkey == NULL
+        ret.err == 0 &&
         PEM_write_bio_PrivateKey(priv_bio, keyset, NULL, NULL, 0, NULL, NULL) > 0
     ) {
         char* data;
         long len = BIO_get_mem_data(priv_bio, &data);
         memcpy(ret.privkey, data, len);
         ret.privkey[len] = '\0';
+    } else {
+        ret.err = 2;
     }
 
     BIO_free(pub_bio);

@@ -14,6 +14,7 @@ typedef EVP_PKEY RSA_Privkey;
 typedef struct {
     char pubkey[1024];
     char privkey[4096];
+    int err;
 } StrKeyset;
 
 

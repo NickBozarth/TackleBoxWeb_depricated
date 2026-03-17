@@ -16,7 +16,76 @@
 </body>
 
 <script>
+    var privateKey;
+
+    async function generateRsaOaepPemKeys() {
+        // 1. Generate the Key Pair
+        const keyPair = await window.crypto.subtle.generateKey(
+            {
+                name: "RSA-OAEP",
+                modulusLength: 2048,
+                publicExponent: new Uint8Array([1, 0, 1]), // 65537
+                hash: "SHA-256",
+            },
+            true, // Set to true to allow exporting as strings
+            ["encrypt", "decrypt"]
+        );
+
+        // 2. Export Public Key to PEM (SPKI format)
+        const spki = await window.crypto.subtle.exportKey("spki", keyPair.publicKey);
+        const publicPem = formatPem(spki, "PUBLIC KEY");
+
+        return { publicPem, rawPrivateKey: keyPair.privateKey };
+    }
+
+    // Helper: Converts ArrayBuffer to Base64 and adds PEM headers
+    function formatPem(buffer, label) {
+        const base64 = btoa(String.fromCharCode(...new Uint8Array(buffer)));
+        // Break the string into 64-character lines for standard PEM formatting
+        const lines = base64.match(/.{1,64}/g).join('\n');
+        return `-----BEGIN ${label}-----\n${lines}\n-----END ${label}-----`;
+    }
+
     
+
+    
+
+    /*
+    generateRsaOaepPemKeys().then(keys => {
+        console.log(`Public PEM:\n${keys.publicPem}`);
+        privateKey = keys.rawPrivateKey;
+        console.log(`Private Key:\n${privateKey}`);
+    });
+    */
+
+
+    // Source - https://stackoverflow.com/a/15724300
+    // Posted by kirlich, modified by community. See post 'Timeline' for change history
+    // Retrieved 2026-03-17, License - CC BY-SA 4.0
+
+    function getCookie(name) {
+        const value = `; ${document.cookie}`;
+        const parts = value.split(`; ${name}=`);
+        if (parts.length === 2) return parts.pop().split(';').shift();
+    }
+
+
+    function fetchTextDataEncrypted(path, body, headers) {
+        if (getCookie("server-public-key") === undefined) return;
+        if (headers === undefined) headers = {};
+        headers["Content-Type"] = "text/plain";
+
+
+
+        fetch(
+            path,
+            {
+                method : "POST",
+                headers: headers,
+                body   : body,
+            },
+        );
+    }
 </script>
 
 
