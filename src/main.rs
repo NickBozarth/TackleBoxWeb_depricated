@@ -1,12 +1,8 @@
 use axum::{
-    body::Body,
-    routing::{
+    Router, extract::DefaultBodyLimit, middleware, response::Json, routing::{
         get,
         get_service
-    },
-    response::Json,
-    Router,
-    middleware,
+    }
 };
 use serde_json::{
     Value, 
@@ -16,9 +12,13 @@ use tower_http::services::{
     ServeDir,
     ServeFile,
 };
+use anyhow::Result;
 
 mod app_middleware;
-use app_middleware::my_middleware;
+use app_middleware::{key_manager, encryption_manager};
+
+use crate::rsa::gen_keys;
+mod rsa;
 
 // `&'static str` becomes a `200 OK` with `content-type: text/plain; charset=utf-8`
 async fn plain_text() -> &'static str {
@@ -32,7 +32,9 @@ async fn json() -> Json<Value> {
 }
 
 #[tokio::main]
-async fn main() {
+async fn main() -> Result<()> {
+    gen_keys()?;
+
     let serve_dir = ServeDir::new("serve");
     let serve_index = ServeFile::new("serve/index.html");
 
@@ -41,9 +43,12 @@ async fn main() {
         .route("/json", get(json))
         .route("/", get_service(serve_index))
         .fallback_service(serve_dir)
-        .layer(middleware::from_fn(my_middleware));
+        .layer(DefaultBodyLimit::max(1024 * 1000)) // limit traffic to 100kb or other arbitrary number
+        .layer(middleware::from_fn(key_manager))
+        .layer(middleware::from_fn(encryption_manager));
 
     let listener = tokio::net::TcpListener::bind("0.0.0.0:8080").await.unwrap();
     println!("Listening on {}", listener.local_addr().unwrap());
     axum::serve(listener, app).await.unwrap();
+    Ok(())
 }
