@@ -5,15 +5,37 @@
 #include <openssl/rsa.h>
 #include <string.h>
 
-RSA_Keyset* gen_keyset() {
+
+
+
+
+
+
+Keyset gen_keyset() {
+
+    printf("SERVER_PUB = %p\n", server_pubkey);
+    printf("SERVER_PRIVKEY = %p\n", server_privkey);
+    if (server_pubkey != NULL && server_privkey != NULL) return (Keyset){ 
+        server_pubkey, 
+        server_privkey 
+    };
+
+    server_pubkey = load_pubkey_from_str(PUBKEY_STR);
+    if (server_pubkey == NULL) return (Keyset){};
+    server_privkey = load_privkey_from_str(PRIVKEY_STR);
+    if (server_privkey == NULL) return (Keyset){};
+    return (Keyset){};
+
     EVP_PKEY* keyset = NULL;
     EVP_PKEY_CTX* context = EVP_PKEY_CTX_new_id(EVP_PKEY_RSA, NULL);
-    if (context == NULL) return NULL;
-    if (EVP_PKEY_keygen_init(context) <= 0) return NULL;
-    if (EVP_PKEY_CTX_set_rsa_keygen_bits(context, 2048) <= 0) return NULL;
-    if (EVP_PKEY_keygen(context, &keyset) <= 0) return NULL;
+    if (context == NULL) return (Keyset){};
+    if (EVP_PKEY_keygen_init(context) <= 0) return (Keyset){};
+    if (EVP_PKEY_CTX_set_rsa_keygen_bits(context, 2048) <= 0) return (Keyset){};
+    if (EVP_PKEY_keygen(context, &keyset) <= 0) return (Keyset){};
     EVP_PKEY_CTX_free(context);
-    return keyset;
+    server_pubkey = keyset;
+    server_privkey = keyset;
+    return (Keyset){ server_pubkey, server_privkey };
 
 }
 
@@ -39,24 +61,41 @@ unsigned char* encrypt_buffer(
 
 unsigned char* decrypt_buffer(
     RSA_Privkey* privkey,
-    const unsigned char* encrypted_msg, size_t encrypted_msg_len,
-    size_t *decrypted_msg_len
+    unsigned char* ciphertext, size_t ciphertext_len,
+    size_t *out_len
 ) {
-    EVP_PKEY_CTX* context = EVP_PKEY_CTX_new(privkey, NULL);
-    if (context == NULL) return NULL;
-    if (EVP_PKEY_decrypt_init(context) <= 0) return NULL;
-    if (EVP_PKEY_CTX_set_rsa_padding(context, RSA_PADDING) <= 0) return NULL;
-    if (EVP_PKEY_decrypt(context, NULL, decrypted_msg_len, encrypted_msg, encrypted_msg_len) <= 0) return NULL;
+    // EVP_PKEY_CTX* context = EVP_PKEY_CTX_new(privkey, NULL);
+    // if (context == NULL) return (unsigned char*)1;
+    // if (EVP_PKEY_decrypt_init(context) <= 0) return (unsigned char*)2;
+    // if (EVP_PKEY_CTX_set_rsa_padding(context, RSA_PADDING) <= 0) return (unsigned char*)3;
+    // if (EVP_PKEY_decrypt(context, NULL, decrypted_msg_len, encrypted_msg, encrypted_msg_len) <= 0) return (unsigned char*)4;
+    //
+    // unsigned char* decrypted_msg = malloc(*decrypted_msg_len + 1);
+    // if (EVP_PKEY_decrypt(context, decrypted_msg, decrypted_msg_len, encrypted_msg, encrypted_msg_len) <= 0) {
+    //     free(decrypted_msg);
+    //     decrypted_msg = (unsigned char*)5;
+    // } else {
+    //     decrypted_msg[*decrypted_msg_len] = '\0';
+    // }
+    // EVP_PKEY_CTX_free(context);
+    // return decrypted_msg;
+    //
+    // EVP_PKEY_CTX* ctx = EVP_PKEY_CTX_new(privkey, NULL);
+    EVP_PKEY_CTX* ctx = EVP_PKEY_CTX_new(privkey, NULL);
+    if (!ctx) return NULL;
+    if (EVP_PKEY_decrypt_init(ctx) <= 0) return NULL;
+    if (EVP_PKEY_CTX_set_rsa_padding(ctx, RSA_PADDING) <= 0) return NULL;
+    if (EVP_PKEY_decrypt(ctx, NULL, out_len, ciphertext, ciphertext_len) <= 0) return NULL;
 
-    unsigned char* decrypted_msg = malloc(*decrypted_msg_len + 1);
-    if (EVP_PKEY_decrypt(context, decrypted_msg, decrypted_msg_len, encrypted_msg, encrypted_msg_len) <= 0) {
-        free(decrypted_msg);
-        decrypted_msg = NULL;
+    unsigned char* plaintext = malloc(*out_len + 1); // +1 for null terminator
+    if (EVP_PKEY_decrypt(ctx, plaintext, out_len, ciphertext, ciphertext_len) <= 0) {
+        free(plaintext);
+        plaintext = (unsigned char*)5;
     } else {
-        decrypted_msg[*decrypted_msg_len] = '\0';
+        plaintext[*out_len] = '\0'; // Ensure it's a valid string
     }
-    EVP_PKEY_CTX_free(context);
-    return decrypted_msg;
+    EVP_PKEY_CTX_free(ctx);
+    return plaintext;
 }
 
 StrKeyset keyset_to_strkeyset(RSA_Keyset *keyset) {

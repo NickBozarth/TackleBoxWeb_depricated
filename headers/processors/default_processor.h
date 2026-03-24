@@ -66,6 +66,8 @@ int set_cookies(Context* context, Response* resp) {
             .dealloc_callback = dealloc_httpheader_value
         };
 
+        printf("cookie_value_str [[%s]]", cookie_value_str);
+
         ARR_APPEND(resp->headers, cookie_header);
     }
 

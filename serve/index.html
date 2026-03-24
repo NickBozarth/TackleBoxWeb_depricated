@@ -47,6 +47,89 @@
     }
 
     
+    async function importPemRsaKey(pem) {
+        console.log(pem);
+        const base64 = pem
+            .replace("-----BEGIN PUBLIC KEY-----", "")
+            .replace("-----END PUBLIC KEY-----", "")
+            .replaceAll("%0A", "");
+    
+        const binaryString = window.atob(base64);
+        const bytes = new Uint8Array(binaryString.length);
+        for (let i = 0; i < binaryString.length; i++) {
+            bytes[i] = binaryString.charCodeAt(i);
+        }
+
+        return await window.crypto.subtle.importKey(
+            "spki",
+            bytes.buffer,
+            {
+                name : "RSA-OAEP",
+                hash : "SHA-256",
+            },
+            true,
+            ["encrypt"]
+        );
+    }
+
+
+    async function encryptWithPublicKey(pemKey, message) {
+        // 1. Clean the PEM string to get the Base64 content
+        const pemHeader = "-----BEGIN PUBLIC KEY-----";
+        const pemFooter = "-----END PUBLIC KEY-----";
+        const base64Contents = pemKey
+            .replace(pemHeader, "")
+            .replace(pemFooter, "")
+            .replaceAll("%0A", "")
+            .replace(/\s/g, "");
+
+        console.log("b64", base64Contents)
+
+        // 2. Convert Base64 to ArrayBuffer
+        const binaryDerString = window.atob(base64Contents);
+        const binaryDer = new Uint8Array(binaryDerString.length);
+        for (let i = 0; i < binaryDerString.length; i++) {
+            binaryDer[i] = binaryDerString.charCodeAt(i);
+        }
+
+        // 3. Import the Key
+        // Note: OpenSSL RSA_PKCS1_OAEP_PADDING defaults to SHA-1
+        const publicKey = await window.crypto.subtle.importKey(
+            "spki",
+            binaryDer.buffer,
+            {
+                name: "RSA-OAEP",
+                hash: "SHA-1", 
+            },
+            false,
+            ["encrypt"]
+        );
+
+        // 4. Encrypt the data
+        const encoder = new TextEncoder();
+        const data = encoder.encode(message);
+
+        const ciphertext = await window.crypto.subtle.encrypt(
+            { name: "RSA-OAEP" },
+            publicKey,
+            data
+        );
+
+        return ciphertext; // Returns an ArrayBuffer
+    }
+
+
+    async function encryptBuffer(publicKey, message) {
+        const messageBuffer = new TextEncoder().encode(message);
+
+        return await window.crypto.subtle.encrypt(
+            {
+                name : "RSA-OAEP"
+            },
+            publicKey,
+            messageBuffer,
+        );
+    }
 
     
 
@@ -70,22 +153,44 @@
     }
 
 
-    function fetchTextDataEncrypted(path, body, headers) {
-        if (getCookie("server-public-key") === undefined) return;
+
+
+    async function fetchTextDataEncrypted(path, body, headers) {
+        const serverPublicKeyCookie = getCookie("server-public-key");
+        if (serverPublicKeyCookie === undefined) return "failed to fetch cookie";
+        /*
+        const serverPublicKey = await importPemRsaKey(serverPublicKeyCookie);
+        console.log(serverPublicKey);
+        const encryptedBody = await encryptBuffer(serverPublicKey, body);
+        console.log(encryptedBody);
+        */
+        const encryptedBody = encryptWithPublicKey(serverPublicKeyCookie, body);
+
         if (headers === undefined) headers = {};
         headers["Content-Type"] = "text/plain";
 
+        let str = "[ ";
+        for (let item of new Uint8Array(encryptedBody)) {
+            str += `${item}, `;
+        }
+        str += "]";
+        console.log(str);
 
 
-        fetch(
+        let resp = fetch(
             path,
             {
                 method : "POST",
                 headers: headers,
-                body   : body,
+                body   : encryptedBody,
             },
         );
+
+        console.log(resp);
+        return await resp;
     }
+
+
 </script>
 
 
