@@ -1,7 +1,7 @@
 use axum::{
     Router, extract::DefaultBodyLimit, middleware, response::Json, routing::{
         get,
-        get_service
+        get_service, post
     }
 };
 use serde_json::{
@@ -15,10 +15,13 @@ use tower_http::services::{
 use anyhow::Result;
 
 mod app_middleware;
-use app_middleware::{key_manager, encryption_manager};
+use app_middleware::{key_manager, codec_manager};
 
-use crate::rsa::gen_keys;
 mod rsa;
+use rsa::gen_keys;
+
+mod post_endpoints;
+use post_endpoints::*;
 
 // `&'static str` becomes a `200 OK` with `content-type: text/plain; charset=utf-8`
 async fn plain_text() -> &'static str {
@@ -42,10 +45,11 @@ async fn main() -> Result<()> {
         .route("/plain_text", get(plain_text))
         .route("/json", get(json))
         .route("/", get_service(serve_index))
+        .route("/path", post(path_page))
         .fallback_service(serve_dir)
         .layer(DefaultBodyLimit::max(1024 * 1000)) // limit traffic to 100kb or other arbitrary number
         .layer(middleware::from_fn(key_manager))
-        .layer(middleware::from_fn(encryption_manager));
+        .layer(middleware::from_fn(codec_manager));
 
     let listener = tokio::net::TcpListener::bind("0.0.0.0:8080").await.unwrap();
     println!("Listening on {}", listener.local_addr().unwrap());

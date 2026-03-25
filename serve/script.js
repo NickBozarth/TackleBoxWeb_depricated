@@ -1,5 +1,6 @@
 var serverPublicKey = undefined;
-
+var clientPrivateKey = undefined;
+var clientPublicKeyStr = undefined;
 
 // Source - https://stackoverflow.com/a/15724300
 // Posted by kirlich, modified by community. See post 'Timeline' for change history
@@ -50,10 +51,10 @@ async function encryptBody(body) {
     // encode body
     const encoder = new TextEncoder();
     const encodedBody = encoder.encode(body);
-    
+
     // encrypt buffer
-    let encryptedBuffer =  await window.crypto.subtle.encrypt(
-        { name : "RSA-OAEP" },
+    let encryptedBuffer = await window.crypto.subtle.encrypt(
+        { name: "RSA-OAEP" },
         serverPublicKey,
         encodedBody
     );
@@ -65,27 +66,75 @@ async function encryptBody(body) {
 }
 
 
+async function decrypt_body(encryptedBodyB64) {
+    if (clientPrivateKey === undefined) return "Failed to decrypt";
+
+    console.log(encryptedBodyB64);
+    const encryptedBuffer = Uint8Array.from(atob(encryptedBodyB64), c => c.charCodeAt(0));
+    
+    const decryptedBuffer = await window.crypto.subtle.decrypt(
+        {
+            name: "RSA-OAEP"
+        },
+        clientPrivateKey,
+        encryptedBuffer
+    );
+
+    const decoder = new TextDecoder();
+    const decryptedText = decoder.decode(decryptedBuffer);
+    return decryptedText;
+}
+
+
 
 async function fetchEncrypted(path, body, method, headers) {
     // make sure unnecessary fields exists
-    if (method  === undefined) method  = "POST";
+    if (method === undefined) method = "POST";
     if (headers === undefined) headers = {};
 
+    // make sure keys exist
+    if (clientPrivateKey === undefined || clientPublicKeyStr === undefined) generate_keys();
+
     // encrypt data
-    const encryptedBody = await encryptBody(body); 
-    
-    // console.log(encryptedBody);
-    // for (let byte of encryptedBody) {
-    //     console.log(`${byte} `);
-    // }
+    const encryptedBody = await encryptBody(body);
 
     // fetch data
-    return await fetch(
+    const encryptedResp = await fetch(
         path,
         {
-            method  : "POST",
-            headers : headers,
-            body    : encryptedBody,
+            method: "POST",
+            headers: headers,
+            body: encryptedBody,
         }
     );
+
+    // decrypt data
+    return decrypt_body(await encryptedResp.text());
+}
+
+
+
+async function generate_keys() {
+    const keypair = await window.crypto.subtle.generateKey(
+        {
+            name: "RSA-OAEP",
+            modulusLength: 2048,
+            publicExponent: new Uint8Array([1, 0, 1]),
+            hash: "SHA-256"
+        },
+        true,
+        ["encrypt", "decrypt"]
+    );
+
+    const exportedPubkey = await window.crypto.subtle.exportKey(
+        "spki",
+        keypair.publicKey
+    );
+
+    clientPrivateKey = keypair.privateKey;
+    clientPublicKeyStr = btoa(String.fromCharCode(...new Uint8Array(exportedPubkey)));
+    console.log(new Uint8Array(exportedPubkey));
+    document.cookie = `client-public-key=${clientPublicKeyStr}`;
+
+    return "done";
 }
