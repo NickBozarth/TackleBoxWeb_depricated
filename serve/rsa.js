@@ -67,6 +67,7 @@ async function encryptBody(body) {
 
 
 async function decryptBody(encryptedBodyB64) {
+    if (encryptedBodyB64 === undefined) return "Cannot decrypt an undefined value"
     if (clientPrivateKey === undefined) return "Failed to decrypt";
 
     // base64 decode buffer
@@ -105,15 +106,19 @@ async function fetchEncrypted(path, body, method, headers) {
     const encryptedBody = await encryptBody(body);
 
     // fetch data
-    return await fetch(
+    let resp = await fetch(
         path,
         {
             method: "POST",
             headers: headers,
             body: encryptedBody,
         }
-    )   .then(resp => resp.text())
-        .then(respBody => decryptBody(respBody));
+    )
+
+    if (resp.status != 200) return resp;
+
+    let respTxt = await resp.text();
+    return decryptBody(respTxt);
 }
 
 
@@ -137,7 +142,6 @@ async function generateKeys() {
 
     clientPrivateKey = keypair.privateKey;
     clientPublicKeyStr = btoa(String.fromCharCode(...new Uint8Array(exportedPubkey)));
-    console.log(new Uint8Array(exportedPubkey));
     document.cookie = `client-public-key=${clientPublicKeyStr}`;
 
     return "done";

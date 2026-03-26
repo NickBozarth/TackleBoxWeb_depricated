@@ -24,7 +24,7 @@ pub async fn key_manager(request: Request, next: Next) -> Response {
     (cookies, response).into_response()
 }
 
-pub async fn codec_manager(request: Request, next: Next) -> Response {
+pub async fn encryption_manager(request: Request, next: Next) -> Response {
     // only act on POST requests
     if request.method() != Method::POST {
         let resp = next.run(request).await;

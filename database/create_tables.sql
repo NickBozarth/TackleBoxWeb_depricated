@@ -1,0 +1,4 @@
+CREATE TABLE IF NOT EXISTS logins(
+    username_hash VARCHAR PRIMARY KEY NOT NULL,
+    login_hash VARCHAR NOT NULL
+);
