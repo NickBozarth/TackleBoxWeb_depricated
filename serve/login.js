@@ -4,7 +4,7 @@ const loginSignupHeader = document.querySelector("div#login-signup>h3");
 
 
 
-class FormResult {
+class Result {
     constructor(value, is_ok) {
         this.value = value;
         this.is_ok = is_ok;
@@ -16,11 +16,11 @@ class FormResult {
 
 
     static ok(value) {
-        return new FormResult(value, true);
+        return new Result(value, true);
     }
 
     static err(value) {
-        return new FormResult(value, false);
+        return new Result(value, false);
     }
 }
 
@@ -33,16 +33,16 @@ function containsValidPasswordChars(password) {
     return /^[a-zA-Z0-9\~\!\@\#\$\%\^\&\*\(\)\-\_\=\+\[\{\}\]\\\|\;\:\'\"\,\<\.\>\/\?]+$/.test(password);
 }
 
-function isAlphanumeric(string)     { return /^[a-zA-Z0-9]+$/.test(username); }
+function isAlphanumeric(string)     { return /^[a-zA-Z0-9]+$/.test(string); }
 function containsSymbol(string)     { return /\W/.test(string); }
 function containsAlphaLower(string) { return /[a-z]/.test(string); }
 function containsAlphaUpper(string) { return /[A-Z]/.test(string); }
 
 function retrieveUsername(form) {
     const usernameField = form.querySelector("input[name=username]");
-    if (usernameField === null)    return FormResult.err("No username field found");
+    if (usernameField === null)    return Result.err("No username field found");
     const username = usernameField.value;    
-    return FormResult.ok(username);
+    return Result.ok(username);
 }
 
 function retrieveUsernameValidated(form) {
@@ -50,17 +50,17 @@ function retrieveUsernameValidated(form) {
     if (usernameRes.is_err) return usernameRes;
     const username = usernameRes.value;
 
-    if (username.length < 8)       return FormResult.err("Username must be at least 8 characters long");
-    if (!isAlphanumeric(username)) return FormResult.err("Username must be alphanumeric");
+    if (username.length < 8)       return Result.err("Username must be at least 8 characters long");
+    if (!isAlphanumeric(username)) return Result.err("Username must be alphanumeric");
     return usernameRes;
 }
 
 
 function retrievePassword(form) {
     const passwordField = form.querySelector("input[name=password]");
-    if (passwordField === null)                return FormResult.err("No password field found");
+    if (passwordField === null)                return Result.err("No password field found");
     const password = passwordField.value;
-    return FormResult.ok(password);
+    return Result.ok(password);
 }
 
 function retrievePasswordValidated(form) {
@@ -68,16 +68,16 @@ function retrievePasswordValidated(form) {
     if (passwordRes.is_err) return passwordRes;
     const password = passwordRes.value;
 
-    if (password.length < 8)                   return FormResult.err("Password must be at lease 8 characters long");
-    if (!containsValidPasswordChars(password)) return FormResult.err("Password contains invalid characters");
-    if (!containsSymbol(password))             return FormResult.err("Password must contain at least one symbol");
-    if (!containsAlphaLower(password))         return FormResult.err("Password must contain at least one lowercase character");
-    if (!containsAlphaUpper(password))         return FormResult.err("Password must contain at least one capital character");
+    if (password.length < 8)                   return Result.err("Password must be at lease 8 characters long");
+    if (!containsValidPasswordChars(password)) return Result.err("Password contains invalid characters");
+    if (!containsSymbol(password))             return Result.err("Password must contain at least one symbol");
+    if (!containsAlphaLower(password))         return Result.err("Password must contain at least one lowercase character");
+    if (!containsAlphaUpper(password))         return Result.err("Password must contain at least one capital character");
 
     return passwordRes;
 }
 
-function processSignup() {
+async function processSignup() {
     // retrieve un & pw
     const usernameRes = retrieveUsernameValidated(signupForm);
     if (usernameRes.is_err) return usernameRes;
@@ -86,9 +86,15 @@ function processSignup() {
     if (passwordRes.is_err) return passwordRes;
     const password = passwordRes.value;
 
-    // generate iv
-    // hash with iv, un, pw
+    // hash with un, pw
+    const unpw = username + password;
+    const unpwBuffer = new TextEncoder().encode(unpw);
+    const loginHash = await window.crypto.subtle.digest("SHA-256", unpwBuffer);
+    const loginHashB64 = btoa(String.fromCharCode(...new Uint8Array(loginHash)));
+    console.log(loginHashB64);
+    
     // send hash
+    return Result.ok(await fetchEncrypted("/signup", { username: username }));
 }
 
 
@@ -104,7 +110,7 @@ loginForm.addEventListener("submit", event => {
     }
 });
 
-signupForm.addEventListener("submit", event => {
+signupForm.addEventListener("submit", async event => {
     event.preventDefault();
 
     const button = event.submitter;
@@ -115,4 +121,5 @@ signupForm.addEventListener("submit", event => {
         return;
     }
 
+    console.log(await processSignup());
 });

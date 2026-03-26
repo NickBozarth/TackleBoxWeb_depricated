@@ -32,7 +32,7 @@ async fn main() -> Result<()> {
 
     let app = Router::new()
         .route("/", get_service(ServeFile::new("serve/index.html")))
-        .route("/path", post(path_page))
+        .route("/signup", post(signup_endpoint))
         .fallback_service(serve_dir)
         .layer(DefaultBodyLimit::max(1024 * 1000)) // limit traffic to 100kb so i dont blow up codec manager
         .layer(middleware::from_fn(key_manager))

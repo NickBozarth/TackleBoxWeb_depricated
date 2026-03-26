@@ -50,8 +50,7 @@ async function encryptBody(body) {
     if (serverPublicKey === undefined) await importSpkiPublicKey();
 
     // encode body
-    const encoder = new TextEncoder();
-    const encodedBody = encoder.encode(body);
+    const encodedBody = new TextEncoder().encode(body);
 
     // encrypt buffer
     const encryptedBuffer = await window.crypto.subtle.encrypt(
@@ -67,7 +66,7 @@ async function encryptBody(body) {
 }
 
 
-async function decrypt_body(encryptedBodyB64) {
+async function decryptBody(encryptedBodyB64) {
     if (clientPrivateKey === undefined) return "Failed to decrypt";
 
     // base64 decode buffer
@@ -100,17 +99,10 @@ async function fetchEncrypted(path, body, method, headers) {
     headers["Content-Type"] = "application/json";
 
     // make sure keys exist
-    if (clientPrivateKey === undefined || clientPublicKeyStr === undefined) generate_keys();
+    if (clientPrivateKey === undefined || clientPublicKeyStr === undefined) generateKeys();
 
     // encrypt data
     const encryptedBody = await encryptBody(body);
-
-
-    console.log({
-            method: method,
-            headers: headers,
-            body: encryptedBody,
-        });
 
     // fetch data
     return await fetch(
@@ -121,12 +113,12 @@ async function fetchEncrypted(path, body, method, headers) {
             body: encryptedBody,
         }
     )   .then(resp => resp.text())
-        .then(respBody => decrypt_body(respBody));
+        .then(respBody => decryptBody(respBody));
 }
 
 
 
-async function generate_keys() {
+async function generateKeys() {
     const keypair = await window.crypto.subtle.generateKey(
         {
             name: "RSA-OAEP",
