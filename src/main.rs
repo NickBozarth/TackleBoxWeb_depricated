@@ -23,31 +23,18 @@ use rsa::gen_keys;
 mod post_endpoints;
 use post_endpoints::*;
 
-// `&'static str` becomes a `200 OK` with `content-type: text/plain; charset=utf-8`
-async fn plain_text() -> &'static str {
-    "foo"
-}
-
-// `Json` gives a content-type of `application/json` and works with any type
-// that implements `serde::Serialize`
-async fn json() -> Json<Value> {
-    Json(json!({ "data": 42 }))
-}
 
 #[tokio::main]
 async fn main() -> Result<()> {
     gen_keys()?;
 
     let serve_dir = ServeDir::new("serve");
-    let serve_index = ServeFile::new("serve/index.html");
 
     let app = Router::new()
-        .route("/plain_text", get(plain_text))
-        .route("/json", get(json))
-        .route("/", get_service(serve_index))
+        .route("/", get_service(ServeFile::new("serve/index.html")))
         .route("/path", post(path_page))
         .fallback_service(serve_dir)
-        .layer(DefaultBodyLimit::max(1024 * 1000)) // limit traffic to 100kb or other arbitrary number
+        .layer(DefaultBodyLimit::max(1024 * 1000)) // limit traffic to 100kb so i dont blow up codec manager
         .layer(middleware::from_fn(key_manager))
         .layer(middleware::from_fn(codec_manager));
 

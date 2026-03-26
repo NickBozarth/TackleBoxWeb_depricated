@@ -32,6 +32,7 @@ async function importSpkiPublicKey() {
         bytes[i] = byteString.charCodeAt(i);
     }
 
+    // import key
     serverPublicKey = await window.crypto.subtle.importKey(
         "spki",
         bytes.buffer,
@@ -53,15 +54,15 @@ async function encryptBody(body) {
     const encodedBody = encoder.encode(body);
 
     // encrypt buffer
-    let encryptedBuffer = await window.crypto.subtle.encrypt(
+    const encryptedBuffer = await window.crypto.subtle.encrypt(
         { name: "RSA-OAEP" },
         serverPublicKey,
         encodedBody
     );
 
+    // format buffer for sending to server
     const encryptedBytes = new Uint8Array(encryptedBuffer);
     const encryptedBase64 = btoa(String.fromCharCode(...encryptedBytes));
-    console.log("HEX SENT:", Array.from(encryptedBytes).map(b => b.toString(16).padStart(2, '0')).join(''));
     return encryptedBase64;
 }
 
@@ -69,9 +70,10 @@ async function encryptBody(body) {
 async function decrypt_body(encryptedBodyB64) {
     if (clientPrivateKey === undefined) return "Failed to decrypt";
 
-    console.log(encryptedBodyB64);
+    // base64 decode buffer
     const encryptedBuffer = Uint8Array.from(atob(encryptedBodyB64), c => c.charCodeAt(0));
-    
+
+    // decrypt
     const decryptedBuffer = await window.crypto.subtle.decrypt(
         {
             name: "RSA-OAEP"
@@ -80,6 +82,7 @@ async function decrypt_body(encryptedBodyB64) {
         encryptedBuffer
     );
 
+    // decode buffer to plaintext
     const decoder = new TextDecoder();
     const decryptedText = decoder.decode(decryptedBuffer);
     return decryptedText;
@@ -92,24 +95,33 @@ async function fetchEncrypted(path, body, method, headers) {
     if (method === undefined) method = "POST";
     if (headers === undefined) headers = {};
 
+    // ensure js objects are handled correctly
+    if (typeof body == "object") body = JSON.stringify(body);
+    headers["Content-Type"] = "application/json";
+
     // make sure keys exist
     if (clientPrivateKey === undefined || clientPublicKeyStr === undefined) generate_keys();
 
     // encrypt data
     const encryptedBody = await encryptBody(body);
 
+
+    console.log({
+            method: method,
+            headers: headers,
+            body: encryptedBody,
+        });
+
     // fetch data
-    const encryptedResp = await fetch(
+    return await fetch(
         path,
         {
             method: "POST",
             headers: headers,
             body: encryptedBody,
         }
-    );
-
-    // decrypt data
-    return decrypt_body(await encryptedResp.text());
+    )   .then(resp => resp.text())
+        .then(respBody => decrypt_body(respBody));
 }
 
 

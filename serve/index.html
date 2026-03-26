@@ -1,21 +1,36 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Here we are</title>
 </head>
+
 <body>
     <h1>header</h1>
 
-    <form action="/foo" method="post" enctype="multipart/form-data">
-        <input type="text" name="description" value="Description input value" />
-        <input type="file" name="myFile" />
-        <button type="submit">Submit</button>
-    </form>
+    <div id="login-signup">
+        <h3>Login</h3>
+
+        <form id="login-form">
+            <input type="text" name="description" value="Description input value" />
+            <input type="file" name="myFile" />
+            <button type="submit">Submit</button>
+            <button class="toggle-form">Toggle</button>
+        </form>
+
+        <form id="signup-form" hidden>
+            <input type="text" name="username" value="Desc" />
+            <input type="file" name="myFile" />
+            <button type="submit">Submit</button>
+            <button class="toggle-form">Toggle</button>
+        </form>
+    </div>
 </body>
 
-<script src="script.js"></script>
+<script src="rsa.js"></script>
+<script src="login.js"></script>
 
 
 </html>
