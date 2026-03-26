@@ -1,34 +1,19 @@
 const loginForm = document.getElementById("login-form");
 const signupForm = document.getElementById("signup-form");
 const loginSignupHeader = document.querySelector("div#login-signup>h3");
+var passwordHash = undefined;
+var sessionId = undefined;
 
-
-
-class Result {
-    constructor(value, is_ok) {
-        this.value = value;
-        this.is_ok = is_ok;
-    }
-
-    get is_err() {
-        return !this.is_ok;
-    }
-
-
-    static ok(value) {
-        return new Result(value, true);
-    }
-
-    static err(value) {
-        return new Result(value, false);
-    }
-}
 
 async function textTosha256B64(text) {
-    const textBuffer = new TextEncoder().encode(text);
-    const textHash = await window.crypto.subtle.digest("SHA-256", textBuffer);
-    const textHashB64 = btoa(String.fromCharCode(...new Uint8Array(textHash)));
-    return textHashB64
+    try {
+        const textBuffer = new TextEncoder().encode(text);
+        const textHash = await window.crypto.subtle.digest("SHA-256", textBuffer);
+        const textHashB64 = btoa(String.fromCharCode(...new Uint8Array(textHash)));
+        return Result.ok(textHashB64);
+    } catch (err) {
+        return Result.err("Failed to sha256 + b64 encode text", text);
+    }
 }
 
 function isValidUsername(username) {
@@ -94,8 +79,12 @@ async function processSignup() {
     const password = passwordRes.value;
 
     // hash necessary data
-    const usernameHashB64 = await textTosha256B64(username);
-    const loginHashB64 = await textTosha256B64(username + password);
+    const usernameHashB64Res = await textTosha256B64(username);
+    if (usernameHashB64Res.is_err) return usernameHashB64Res;
+    const usernameHashB64 = usernameHashB64Res.value;
+    const loginHashB64Res = await textTosha256B64(username + password);
+    if (loginHashB64Res.is_err) return loginHashB64Res;
+    const loginHashB64 = loginHashB64Res.value;
 
     // TODO parse success and fail values
     // send hashes
@@ -119,38 +108,62 @@ async function processLogin() {
     const password = passwordRes.value;
 
     // hash necessary data
-    const usernameHashB64 = await textTosha256B64(username);
-    const loginHashB64 = await textTosha256B64(username + password);
+    const usernameHashB64Res = await textTosha256B64(username);
+    if (usernameHashB64Res.is_err) return usernameHashB64Res;
+    const usernameHashB64 = usernameHashB64Res.value;
+    const loginHashB64Res = await textTosha256B64(username + password);
+    if (loginHashB64Res.is_err) return loginHashB64Res;
+    const loginHashB64 = loginHashB64Res.value;
 
     // get the first response from the server
     // data will be structured "[login_id] [saltb64]"
-    let resp1 = await fetchEncrypted(
+    const resp1Res = await fetchEncrypted(
         "/login",
         {
             username_hash: usernameHashB64,
         }
     );
 
+    if (resp1Res.is_err) return resp1Res;
+    let resp1;
     try {
-        resp1 = JSON.parse(resp1);
-        console.log("RESP1");
-        console.log(resp1);
-    } catch {
-        return Result.err(resp1);
+        resp1 = JSON.parse(resp1Res.value);
+    } catch (err) {
+        return Result.err(resp1Res.value);
     }
 
-    const login_hash2 = await textTosha256B64(loginHashB64 + resp1.salt);
-    console.log(login_hash2);
+    const salt = resp1["salt"];
+    const requestId = resp1["request_id"];
+    if (salt === undefined || requestId === undefined) return Response.err("resp1 malformed");
 
-    let resp2 = await fetchEncrypted(
+    const loginHash2Res = await textTosha256B64(loginHashB64 + salt);
+    if (loginHash2Res.is_err) return loginHash2Res;
+    const loginHash2 = loginHash2Res.value;
+    console.log(loginHash2);
+    console.log("what3");
+
+    let resp2Res = await fetchEncrypted(
         "/login",
         {
-            request_id: resp1.request_id,
+            request_id: requestId,
             username_hash: usernameHashB64,
-            login_hash2: login_hash2,
+            login_hash2: loginHash2,
         }
     )
-    console.log(resp2);
+
+    if (resp2Res.is_err) return resp2Res;
+    let resp2;
+    try {
+        resp2 = JSON.parse(resp2Res.value);
+    } catch (err) {
+        console.log(resp2);
+        return Result.err(resp2Res.value);
+    }
+
+    sessionId = resp2["session_id"];
+    if (sessionId === undefined) return Response.err("resp2 malformed");
+
+    return Result.ok("Login Success");
 }
 
 
@@ -166,8 +179,8 @@ loginForm.addEventListener("submit", async event => {
     }
 
     console.log("what")
-
     console.log(await processLogin());
+    console.log("what2");
 });
 
 signupForm.addEventListener("submit", async event => {
