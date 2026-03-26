@@ -24,6 +24,13 @@ class Result {
     }
 }
 
+async function textTosha256B64(text) {
+    const textBuffer = new TextEncoder().encode(text);
+    const textHash = await window.crypto.subtle.digest("SHA-256", textBuffer);
+    const textHashB64 = btoa(String.fromCharCode(...new Uint8Array(textHash)));
+    return textHashB64
+}
+
 function isValidUsername(username) {
     if (!username) return false;
     return /^[a-zA-Z0-9]+$/.test(username) && username.length > 7;
@@ -86,32 +93,68 @@ async function processSignup() {
     if (passwordRes.is_err) return passwordRes;
     const password = passwordRes.value;
 
-    // hash un
-    const usernameBuffer = new TextEncoder().encode(username);
-    const usernameHash = await window.crypto.subtle.digest("SHA-256", usernameBuffer);
-    const usernameHashB64 = btoa(String.fromCharCode(...new Uint8Array(usernameHash)));
+    // hash necessary data
+    const usernameHashB64 = await textTosha256B64(username);
+    const loginHashB64 = await textTosha256B64(username + password);
 
-    // hash with un, pw
-    const unpw = username + password;
-    const unpwBuffer = new TextEncoder().encode(unpw);
-    const signupHash = await window.crypto.subtle.digest("SHA-256", unpwBuffer);
-    const signupHashB64 = btoa(String.fromCharCode(...new Uint8Array(signupHash)));
-
-
-    // send hash
+    // TODO parse success and fail values
+    // send hashes
     return Result.ok(
         await fetchEncrypted(
             "/signup",
             {
                 username_hash: usernameHashB64,
-                login_hash: signupHashB64
+                login_hash: loginHashB64
             }
         )
     );
 }
 
+async function processLogin() {
+    const usernameRes = retrieveUsername(loginForm);
+    if (usernameRes.is_err) return usernameRes;
+    const username = usernameRes.value;
+    const passwordRes = retrievePassword(loginForm);
+    if (passwordRes.is_err) return passwordRes;
+    const password = passwordRes.value;
 
-loginForm.addEventListener("submit", event => {
+    // hash necessary data
+    const usernameHashB64 = await textTosha256B64(username);
+    const loginHashB64 = await textTosha256B64(username + password);
+
+    // get the first response from the server
+    // data will be structured "[login_id] [saltb64]"
+    let resp1 = await fetchEncrypted(
+        "/login",
+        {
+            username_hash: usernameHashB64,
+        }
+    );
+
+    try {
+        resp1 = JSON.parse(resp1);
+        console.log("RESP1");
+        console.log(resp1);
+    } catch {
+        return Result.err(resp1);
+    }
+
+    const login_hash2 = await textTosha256B64(loginHashB64 + resp1.salt);
+    console.log(login_hash2);
+
+    let resp2 = await fetchEncrypted(
+        "/login",
+        {
+            request_id: resp1.request_id,
+            username_hash: usernameHashB64,
+            login_hash2: login_hash2,
+        }
+    )
+    console.log(resp2);
+}
+
+
+loginForm.addEventListener("submit", async event => {
     event.preventDefault();
 
     const button = event.submitter;
@@ -121,6 +164,10 @@ loginForm.addEventListener("submit", event => {
         signupForm.hidden = false;
         return;
     }
+
+    console.log("what")
+
+    console.log(await processLogin());
 });
 
 signupForm.addEventListener("submit", async event => {

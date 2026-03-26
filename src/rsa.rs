@@ -7,7 +7,7 @@ use rsa::{
 };
 
 use anyhow::{Result, anyhow};
-use sha2::Sha256;
+use sha2::{Digest, Sha256};
 
 static PRIVATE_KEY: OnceLock<RsaPrivateKey> = OnceLock::new();
 static PUBLIC_KEY: OnceLock<RsaPublicKey> = OnceLock::new();
@@ -63,6 +63,8 @@ pub trait Cryptography {
 
     fn into_b64_encoded(self) -> String;
     fn into_b64_decoded(self) -> Result<Vec<u8>, base64::DecodeError>;
+
+    fn into_sha256(self) -> Vec<u8>;
 }
 
 impl<T: AsRef<[u8]>> Cryptography for T {
@@ -86,5 +88,11 @@ impl<T: AsRef<[u8]>> Cryptography for T {
 
     fn into_b64_decoded(self) -> Result<Vec<u8>, base64::DecodeError> {
         BASE64_STANDARD.decode(self)
+    }
+
+    fn into_sha256(self) -> Vec<u8> {
+        Sha256::digest(self)
+            .into_iter()
+            .collect()
     }
 }
