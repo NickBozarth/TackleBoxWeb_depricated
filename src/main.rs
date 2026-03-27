@@ -29,6 +29,8 @@ mod extractors;
 mod app_state;
 use app_state::AppState;
 
+mod sessions;
+
 
 
 
@@ -44,8 +46,8 @@ async fn main() -> Result<()> {
         .route("/login", post(login_endpoint))
         .fallback_service(ServeDir::new("serve"))
         .layer(DefaultBodyLimit::max(1024 * 1000)) // limit traffic to 100kb so i dont blow up codec manager
-        .layer(middleware::from_fn(key_manager))
         .layer(middleware::from_fn(encryption_manager))
+        .layer(middleware::from_fn(key_manager))
         .with_state(state);
 
     let listener = tokio::net::TcpListener::bind("0.0.0.0:8080").await.unwrap();

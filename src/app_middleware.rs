@@ -1,11 +1,18 @@
 use crate::rsa::{Cryptography, get_pubkey, import_pubkey};
 use axum::body::Body;
-use axum::http::Method;
+use axum::http::{Method, StatusCode};
 use axum::middleware::Next;
 use axum::response::IntoResponse;
 use axum::{extract::Request, response::Response};
 use axum_extra::extract::{CookieJar, cookie::Cookie};
 use http_body_util::BodyExt;
+
+
+
+fn request_is_encrypted(request: &Request) -> bool {
+    request.method() == Method::POST
+}
+
 
 pub async fn key_manager(request: Request, next: Next) -> Response {
     // get the server-public key cookie
@@ -13,20 +20,25 @@ pub async fn key_manager(request: Request, next: Next) -> Response {
     let mut cookies = CookieJar::from_headers(headers);
     let pubkey_cookie = cookies.get("server-public-key");
 
-    let response = next.run(request).await;
-
     // add pubkey if it is unset or does not equal the current pubkey
     let current_pubkey = get_pubkey();
     if pubkey_cookie.map(|cookie| cookie.value()) != Some(current_pubkey) {
         cookies = cookies.add(Cookie::new("server-public-key", get_pubkey()));
+
+        if request_is_encrypted(&request) {
+            return (cookies, StatusCode::PRECONDITION_FAILED).into_response();
+        }
     }
+
+
+    let response = next.run(request).await;
+    
 
     (cookies, response).into_response()
 }
 
 pub async fn encryption_manager(request: Request, next: Next) -> Response {
-    // only act on POST requests
-    if request.method() != Method::POST {
+    if !request_is_encrypted(&request) {
         let resp = next.run(request).await;
         return resp;
     }

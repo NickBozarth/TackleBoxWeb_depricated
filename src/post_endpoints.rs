@@ -1,11 +1,12 @@
 use std::{collections::HashMap, sync::OnceLock};
 
-use axum::{Json, http::StatusCode};
+use axum::{Json, extract::{FromRequest, Request, State}, http::StatusCode, response::IntoResponse};
+use axum_extra::extract::{CookieJar, cookie::Cookie};
 use serde::{Deserialize, Serialize};
 use sqlx::{Executor, error::DatabaseError, FromRow, sqlite::SqliteError};
 use tokio::sync::Mutex;
 
-use crate::{extractors::Pool, rsa::Cryptography};
+use crate::{app_state::AppState, extractors::Pool, rsa::Cryptography, sessions::Session};
 
 #[derive(Deserialize)]
 pub struct SignupHash {
@@ -79,16 +80,13 @@ pub async fn login_endpoint(Pool(pool): Pool<'_>, Json(login_hash): Json<LoginHa
         .lock()
         .await;
 
-    println!("LOGIN HASH {:#?}", login_hash);
-
-
     if login_hash.request_id.is_none() || login_hash.login_hash2.is_none() {
         if login_request_map.len() >= MAX_LOGIN_REQUESTS {
             return Err("Server is processing too many login requests. Please try again later".to_owned());
         }
 
         // ensure that user is contained in db
-        let user_in_db = sqlx::query("SELECT 1 FROM logins WHERE username_hash = ?")
+        sqlx::query("SELECT 1 FROM logins WHERE username_hash = ?")
             .bind(&login_hash.username_hash)
             .execute(pool)
             .await
@@ -113,6 +111,7 @@ pub async fn login_endpoint(Pool(pool): Pool<'_>, Json(login_hash): Json<LoginHa
             salt: saltb64
         };
         login_request_map.insert(request_id, login_request);
+
         return Ok(ret);
     }
 
@@ -134,14 +133,26 @@ pub async fn login_endpoint(Pool(pool): Pool<'_>, Json(login_hash): Json<LoginHa
         .bind(login_hash.username_hash)
         .fetch_one(pool)
         .await
-        .map_err(|_| "Failed to retrieve login".to_owned())?
+        .map_err(|_| "Incorrect username or password".to_owned())?
         .login_hash;
 
-    let x = (internal_login_hash + &login_request.salt).into_sha256().into_b64_encoded();
-    println!("NEW HASH {:#?}", x);
-    println!("HASHES ARE EQUAL {}", x == login_hash.login_hash2.unwrap());
+    let internal_login_hash2 = (internal_login_hash + &login_request.salt)
+        .into_sha256()
+        .into_b64_encoded();
 
 
+    
+    println!("MADE IT HERER");
+    // login_hash.login_hash2 is Some(_)
+    let resp = match internal_login_hash2 == login_hash.login_hash2.unwrap() {
+        false => Err("Incorrect username or password".to_owned()),
+        true => {
+            // create session
+            let Session(session_id) = Session::new(pool);
+            Ok(format!("{{ \"session_id\": {} }}", session_id))
+        }
+    };
 
-    todo!()
+    println!("RESPONSE {:#?}", resp);
+    resp
 }

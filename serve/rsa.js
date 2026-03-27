@@ -144,11 +144,15 @@ async function fetchEncrypted(path, body, method, headers) {
     try {
         // make sure unnecessary fields exists
         if (method === undefined) method = "POST";
-        if (headers === undefined) headers = {};
+        if (headers === undefined) headers = new Headers();
 
         // ensure js objects are handled correctly
-        if (typeof body == "object") body = JSON.stringify(body);
-        headers["Content-Type"] = "application/json";
+        if (typeof body == "object") {
+            body = JSON.stringify(body);
+            headers.append('Content-Type', 'application/json')
+        }
+        
+
 
         // make sure keys exist
         if (clientPrivateKey === undefined || clientPublicKeyStr === undefined) {
@@ -172,6 +176,7 @@ async function fetchEncrypted(path, body, method, headers) {
             }
         )
 
+        // if (resp.status == 412) return await fetchEncrypted
         if (resp.status != 200) return Result.err(resp);
 
         let respTxt = await resp.text();
