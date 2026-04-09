@@ -24,6 +24,9 @@ use rsa::gen_keys;
 mod post_endpoints;
 use post_endpoints::*;
 
+mod get_endpoints;
+use get_endpoints::*;
+
 mod extractors;
 
 mod app_state;
@@ -44,6 +47,8 @@ async fn main() -> Result<()> {
         .route("/", get_service(ServeFile::new("serve/index.html")))
         .route("/signup", post(signup_endpoint))
         .route("/login", post(login_endpoint))
+        .route("/check_session", post(check_session))
+        .route("/sections", get(get_tackle_types))
         .fallback_service(ServeDir::new("serve"))
         .layer(DefaultBodyLimit::max(1024 * 1000)) // limit traffic to 100kb so i dont blow up codec manager
         .layer(middleware::from_fn(encryption_manager))

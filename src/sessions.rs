@@ -5,29 +5,43 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
+use axum::{extract::{FromRequest, FromRequestParts, Request}, http::StatusCode};
+use serde::Deserialize;
 use sqlx::{SqlitePool, prelude::FromRow};
 
-static SESSION_MAP: OnceLock<RwLock<HashMap<u32, u64>>> = OnceLock::new();
-fn get_session_map() -> &'static RwLock<HashMap<u32, u64>> {
+use crate::app_state::AppState;
+
+
+#[derive(Debug, Eq, Hash, PartialEq, Deserialize)]
+#[serde(transparent)]
+pub struct SessionId(pub u32);
+#[derive(Debug, Eq, Ord, PartialEq, PartialOrd)]
+struct SessionTimestamp(u64);
+
+static SESSION_MAP: OnceLock<RwLock<HashMap<SessionId, SessionTimestamp>>> = OnceLock::new();
+fn get_session_map() -> &'static RwLock<HashMap<SessionId, SessionTimestamp>> {
     SESSION_MAP.get_or_init(|| RwLock::new(HashMap::new()))
 }
 
-const MAX_SESSION_TIME_SECS: u64 = 10 * 60;
+const MAX_SESSION_TIME_SECS: u64 = 2 * 60;
 
-#[derive(Debug, FromRow)]
-pub struct Session(pub u32);
+#[derive(Debug, Deserialize)]
+pub struct Session {
+    #[serde(rename = "session_id")]
+    pub id: SessionId
+}
 
 impl Session {
-    // i want to avoid using map.retain because it requires a &mut and that locks the RwLock
+    // i want to avoid using map.retain initially because it requires a &mut and that locks the RwLock
     // removing an item using this is the cold path
     fn remove_old_sessions() {
-        let session_map_read = get_session_map()
+        println!("HERE1");
+        let oldest_session_secs = get_session_map()
             .read()
-            .expect("Failed to read session map");
-        let oldest_session_secs = session_map_read
+            .expect("Failed to read session map")
             .iter()
             .min_by(|(_, last_used1), (_, last_used2)| last_used1.cmp(last_used2))
-            .map(|(_, last_used)| last_used);
+            .map(|(_, last_used)| last_used.0);
 
         // duration since should never fail with the given parameters
         let now_secs = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs();
@@ -35,11 +49,11 @@ impl Session {
         let oldest_keep_time = now_secs - MAX_SESSION_TIME_SECS;
         get_session_map()
             .write()
-            .expect("Failed to write session map")
-            .retain(|_, last_used| *last_used >= oldest_keep_time);
+            .expect("Failed to access session map as write")
+            .retain(|_, last_used| *last_used >= SessionTimestamp(oldest_keep_time));
     }
 
-    pub fn new(pool: &SqlitePool) -> Self {
+    pub fn new() -> Self {
         Self::remove_old_sessions();
 
         // generate unique id
@@ -49,8 +63,11 @@ impl Session {
             let is_unique = get_session_map()
                 .read()
                 .expect("Failed to read session map")
-                .contains_key(&id)
+                .contains_key(&SessionId(id))
                 .not();
+
+            println!("ID {} IS UNIQUE {}", id, is_unique);
+
             if is_unique {
                 break;
             }
@@ -65,10 +82,18 @@ impl Session {
         get_session_map()
             .write()
             .expect("Failed to access SESSION_MAP as write")
-            .insert(id, current_timestamp);
+            .insert(SessionId(id), SessionTimestamp(current_timestamp));
 
         println!("SESSION_MAP {:#?}", get_session_map());
 
-        Self(id)
+        Self {
+            id: SessionId(id)
+        }
+    }
+
+    pub fn is_valid(&self) -> bool {
+        get_session_map()
+            .read()
+            .is_ok_and(|map| map.contains_key(&self.id))
     }
 }

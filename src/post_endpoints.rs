@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use sqlx::{Executor, error::DatabaseError, FromRow, sqlite::SqliteError};
 use tokio::sync::Mutex;
 
-use crate::{app_state::AppState, extractors::Pool, rsa::Cryptography, sessions::Session};
+use crate::{app_state::AppState, extractors::Pool, rsa::Cryptography, sessions::{Session, SessionId}};
 
 #[derive(Deserialize)]
 pub struct SignupHash {
@@ -80,6 +80,8 @@ pub async fn login_endpoint(Pool(pool): Pool<'_>, Json(login_hash): Json<LoginHa
         .lock()
         .await;
 
+    
+    // initial request goes here to retrieve requestid and salt
     if login_hash.request_id.is_none() || login_hash.login_hash2.is_none() {
         if login_request_map.len() >= MAX_LOGIN_REQUESTS {
             return Err("Server is processing too many login requests. Please try again later".to_owned());
@@ -117,10 +119,13 @@ pub async fn login_endpoint(Pool(pool): Pool<'_>, Json(login_hash): Json<LoginHa
 
 
 
+
+
     // find the login request that corresponds with the request_id provided
     let login_request = login_request_map
-        .get(&login_hash.request_id.unwrap())
+        .remove(&login_hash.request_id.unwrap())
         .ok_or("No login request found with provided request_id".to_string())?;
+
 
     // find the login from the database that corresponds to the given login_hash.login_hash
     let internal_login_hash: String = sqlx::query_as::<_, Login>(
@@ -145,14 +150,26 @@ pub async fn login_endpoint(Pool(pool): Pool<'_>, Json(login_hash): Json<LoginHa
     println!("MADE IT HERER");
     // login_hash.login_hash2 is Some(_)
     let resp = match internal_login_hash2 == login_hash.login_hash2.unwrap() {
-        false => Err("Incorrect username or password".to_owned()),
         true => {
             // create session
-            let Session(session_id) = Session::new(pool);
-            Ok(format!("{{ \"session_id\": {} }}", session_id))
-        }
+            let session = Session::new();
+            let session_id_u32 = session.id.0;
+            Ok(format!("{{ \"session_id\": {} }}", session_id_u32))
+        },
+        false => Err("Incorrect username or password".to_owned())
     };
 
     println!("RESPONSE {:#?}", resp);
     resp
 }
+
+
+pub async fn check_session(Json(session): Json<Session>) -> StatusCode {
+    match session.is_valid() {
+        true => StatusCode::OK,
+        false => StatusCode::BAD_REQUEST
+    }
+}
+
+
+

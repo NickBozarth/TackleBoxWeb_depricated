@@ -146,11 +146,17 @@ async function fetchEncrypted(path, body, method, headers) {
         if (method === undefined) method = "POST";
         if (headers === undefined) headers = new Headers();
 
+        console.log("body");
+        console.log(body);
+
         // ensure js objects are handled correctly
         if (typeof body == "object") {
             body = JSON.stringify(body);
             headers.append('Content-Type', 'application/json')
         }
+
+        console.log("body");
+        console.log(body);
         
 
 
