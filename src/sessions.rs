@@ -92,8 +92,16 @@ impl Session {
     }
 
     pub fn is_valid(&self) -> bool {
-        get_session_map()
+        {
+            get_session_map().read().unwrap().iter().for_each(|x| println!("SESSION {:?}", x));
+        }
+
+        let x = get_session_map()
             .read()
-            .is_ok_and(|map| map.contains_key(&self.id))
+            .unwrap()
+            .contains_key(&self.id);
+
+        println!("RETURNING {x}");
+        x    
     }
 }

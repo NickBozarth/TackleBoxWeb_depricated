@@ -1,4 +1,4 @@
-use crate::rsa::{Cryptography, get_pubkey, import_pubkey};
+use crate::rsa::{Base64String, Cryptography, RsaEncrypted, get_pubkey, import_pubkey};
 use axum::body::Body;
 use axum::http::{Method, StatusCode};
 use axum::middleware::Next;
@@ -55,18 +55,20 @@ pub async fn encryption_manager(request: Request, next: Next) -> Response {
     let (parts, encrypted_body) = request.into_parts();
 
     // decrypt body
-    // convert to bytes -> b64 decode -> decrypt
-    let decrypted_body = encrypted_body
+    let decrypted_body = encrypted_body 
         .collect()
         .await
         .expect("Failed to collect response body")
+        //convert to bytes
         .to_bytes()
+        // tell compiler the bytes are a base64 string
+        .interpret_as_b64_string::<RsaEncrypted<Vec<u8>>>() 
         .into_b64_decoded()
         .expect("Failed to base64 decode body")
-        .into_decrypted()
+        .into_rsa_decrypted_global()
         .expect("Failed to decrypt body");
 
-    println!("DECRYPTED BODY: {:?}", String::from_utf8(decrypted_body.clone()));
+    println!("DECRYPTED BODY: {:?}", String::from_utf8_lossy(&decrypted_body));
 
     let new_body = Body::from(decrypted_body);
     let new_request = axum::http::Request::from_parts(parts, new_body);
@@ -78,19 +80,20 @@ pub async fn encryption_manager(request: Request, next: Next) -> Response {
     let (parts, body) = resp.into_parts();
 
     // encrypt body
-    let body_bytes = body
+    let body_string: String = body
         .into_data_stream()
         .collect()
         .await
         .expect("Failed to unwrap body")
         .to_bytes()
-        .into_encrypted(client_pubkey)
+        .into_rsa_encrypted(client_pubkey)
         .expect("Failed to encrypt body")
-        .into_b64_encoded();
+        .into_b64_encoded()
+        .to_string();
 
 
     // construct and return response
-    let resp_body = Body::from(body_bytes);
+    let resp_body = Body::from(body_string);
     let new_resp = Response::from_parts(parts, resp_body);
 
     new_resp

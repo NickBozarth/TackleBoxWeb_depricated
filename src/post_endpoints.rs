@@ -3,43 +3,13 @@ use std::{collections::HashMap, sync::OnceLock};
 use axum::{Json, extract::{FromRequest, Request, State}, http::StatusCode, response::IntoResponse};
 use axum_extra::extract::{CookieJar, cookie::Cookie};
 use serde::{Deserialize, Serialize};
+use sha2::Sha256;
 use sqlx::{Executor, error::DatabaseError, FromRow, sqlite::SqliteError};
 use tokio::sync::Mutex;
 
-use crate::{app_state::AppState, extractors::Pool, rsa::Cryptography, sessions::{Session, SessionId}};
-
-#[derive(Deserialize)]
-pub struct SignupHash {
-    username_hash: String,
-    login_hash: String,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct LoginHash {
-    username_hash: String,
-    pub login_hash2: Option<String>, // login_hash + salt
-    request_id: Option<u32>
-}
-
-#[derive(Debug)]
-pub struct LoginRequest {
-    id: u32,
-    username_hash: String,
-    salt: String,
-}
-
-#[derive(Debug, FromRow)]
-struct Login {
-    username_hash: String,
-    login_hash: String
-}
+use crate::{app_state::AppState, extractors::Pool, logins::{Login, LoginHash, LoginRequest, MAX_LOGIN_REQUESTS, SignupHash, get_login_requests_map}, new_tackle::NewTackleRequest, rsa::{Base64String, Cryptography, Hash}, sessions::{Session, SessionId}};
 
 
-const MAX_LOGIN_REQUESTS: usize = 10;
-static LOGIN_REQUESTS_MAP: OnceLock<Mutex<HashMap<u32, LoginRequest>>> = OnceLock::new();
-fn get_login_requests_map() -> &'static Mutex<HashMap<u32, LoginRequest>> {
-    LOGIN_REQUESTS_MAP.get_or_init(|| Mutex::new(HashMap::new()))
-}
 
 
 // TODO make signup an toggleable feature
@@ -49,8 +19,8 @@ pub async fn signup_endpoint(
 ) -> &'static str {
     // attempt to insert signup
     let query_result = sqlx::query("INSERT INTO logins VALUES (?, ?)")
-        .bind(signup_hash.username_hash)
-        .bind(signup_hash.login_hash)
+        .bind(signup_hash.username_hash.to_string())
+        .bind(signup_hash.login_hash.to_string())
         .execute(pool)
         .await;
 
@@ -89,7 +59,7 @@ pub async fn login_endpoint(Pool(pool): Pool<'_>, Json(login_hash): Json<LoginHa
 
         // ensure that user is contained in db
         sqlx::query("SELECT 1 FROM logins WHERE username_hash = ?")
-            .bind(&login_hash.username_hash)
+            .bind::<&str>(&login_hash.username_hash.to_string())
             .execute(pool)
             .await
             .map_err(|_| "Username not found".to_owned())?;
@@ -104,7 +74,7 @@ pub async fn login_endpoint(Pool(pool): Pool<'_>, Json(login_hash): Json<LoginHa
         // generate random base64 to salt hash with
         let salt: [u8;12] = rand::random();
         let saltb64 = salt.into_b64_encoded();
-        let ret = format!("{{ \"request_id\": {}, \"salt\": \"{}\"}}", request_id, saltb64);
+        let ret = format!("{{ \"request_id\": {}, \"salt\": \"{}\"}}", request_id, saltb64.to_string());
 
         // create new request for server to hold onto
         let login_request = LoginRequest { 
@@ -128,21 +98,21 @@ pub async fn login_endpoint(Pool(pool): Pool<'_>, Json(login_hash): Json<LoginHa
 
 
     // find the login from the database that corresponds to the given login_hash.login_hash
-    let internal_login_hash: String = sqlx::query_as::<_, Login>(
+    let internal_login_hash: Base64String<Hash<Sha256>> = sqlx::query_as::<_, Login>(
         "
             SELECT * 
             FROM logins 
             WHERE username_hash = ?
         "
     )
-        .bind(login_hash.username_hash)
+        .bind::<String>(login_hash.username_hash.to_string())
         .fetch_one(pool)
         .await
         .map_err(|_| "Incorrect username or password".to_owned())?
         .login_hash;
 
-    let internal_login_hash2 = (internal_login_hash + &login_request.salt)
-        .into_sha256()
+    let internal_login_hash2 = (internal_login_hash.to_string() + &login_request.salt.to_string())
+        .get_hash::<Sha256>()
         .into_b64_encoded();
 
 
@@ -172,4 +142,6 @@ pub async fn check_session(Json(session): Json<Session>) -> StatusCode {
 }
 
 
-
+pub async fn new_tackle(Json(new_tackle): Json<NewTackleRequest>) -> StatusCode {
+    todo!()
+}

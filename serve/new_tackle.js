@@ -8,10 +8,12 @@ var tackleTypes = undefined;
 
 
 async function processNewTackle() {
-    if (sessionId === undefined) return Result.err("You must be logged in to submit a new tackle");
+    if (passwordHash === undefined || sessionId === undefined) 
+        return Result.err("You must be logged in to submit a new tackle");
 
     let resp1 = await fetchEncrypted("/check_session", { "session_id" : sessionId });
-    if (!resp1.ok) return Result.err("Invalid session");
+    if (resp1.is_err) return resp1;
+    console.log("SUCCESS");
 
     return Result.ok();
 }

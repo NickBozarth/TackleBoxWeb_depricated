@@ -115,6 +115,8 @@ async function processLogin() {
     if (loginHashB64Res.is_err) return loginHashB64Res;
     const loginHashB64 = loginHashB64Res.value;
 
+    passwordHash = await textTosha256B64(password);
+
     // get the first response from the server
     // data will be structured "[login_id] [saltb64]"
     const resp1Res = await fetchEncrypted(

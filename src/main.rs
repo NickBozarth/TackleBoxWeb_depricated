@@ -34,6 +34,10 @@ use app_state::AppState;
 
 mod sessions;
 
+mod new_tackle;
+
+mod logins;
+
 
 
 
@@ -45,10 +49,11 @@ async fn main() -> Result<()> {
 
     let app = Router::new()
         .route("/", get_service(ServeFile::new("serve/index.html")))
+        .route("/sections", get(get_tackle_types))
         .route("/signup", post(signup_endpoint))
         .route("/login", post(login_endpoint))
         .route("/check_session", post(check_session))
-        .route("/sections", get(get_tackle_types))
+        .route("/new_tackle", post(new_tackle))
         .fallback_service(ServeDir::new("serve"))
         .layer(DefaultBodyLimit::max(1024 * 1000)) // limit traffic to 100kb so i dont blow up codec manager
         .layer(middleware::from_fn(encryption_manager))
