@@ -122,8 +122,8 @@ pub async fn login_endpoint(Pool(pool): Pool<'_>, Json(login_hash): Json<LoginHa
     let resp = match internal_login_hash2 == login_hash.login_hash2.unwrap() {
         true => {
             // create session
-            let session = Session::new();
-            let session_id_u32 = session.id.0;
+            let session = Session::new(login_hash.username_hash);
+            let session_id_u32 = session.get_id_raw();
             Ok(format!("{{ \"session_id\": {} }}", session_id_u32))
         },
         false => Err("Incorrect username or password".to_owned())
@@ -134,14 +134,8 @@ pub async fn login_endpoint(Pool(pool): Pool<'_>, Json(login_hash): Json<LoginHa
 }
 
 
-pub async fn check_session(Json(session): Json<Session>) -> StatusCode {
-    match session.is_valid() {
-        true => StatusCode::OK,
-        false => StatusCode::BAD_REQUEST
-    }
-}
-
-
 pub async fn new_tackle(Json(new_tackle): Json<NewTackleRequest>) -> StatusCode {
+
+
     todo!()
 }

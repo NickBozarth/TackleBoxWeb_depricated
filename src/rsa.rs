@@ -1,6 +1,8 @@
 use std::{ffi::os_str::Display, marker::PhantomData, str::Bytes, sync::OnceLock};
 
+use aes_gcm::{AeadCore, Aes256Gcm, AesGcm, Key, KeyInit, KeySizeUser, Nonce, aead::Aead, aes::{self, cipher::{BlockCipher, BlockEncrypt, BlockSizeUser}}};
 use base64::{Engine, prelude::BASE64_STANDARD};
+use rand::rngs::OsRng;
 use rsa::{
     Oaep, RsaPrivateKey, RsaPublicKey,
     pkcs8::{DecodePublicKey, EncodePublicKey, LineEnding},
@@ -8,7 +10,8 @@ use rsa::{
 
 use anyhow::{Result, anyhow};
 use serde::Deserialize;
-use sha2::{Digest, Sha256};
+use serde_json::from_slice;
+use sha2::{Digest, Sha256, digest::crypto_common::InnerUser};
 
 static PRIVATE_KEY: OnceLock<RsaPrivateKey> = OnceLock::new();
 static PUBLIC_KEY: OnceLock<RsaPublicKey> = OnceLock::new();
@@ -58,7 +61,7 @@ pub fn import_pubkey(pubkey_str_b64: &str) -> Result<RsaPublicKey> {
 }
 
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Clone)]
 #[serde(transparent)]
 pub struct Base64String<Inner>(String, PhantomData<Inner>);
 
@@ -139,9 +142,52 @@ impl<T> AsRef<[u8]> for RsaEncrypted<T> {
 }
 
 
+#[derive(Deserialize)]
+pub struct AesEncrypted<Cipher, Inner> {
+    data: Vec<u8>, 
+    cipher_phantom: PhantomData<Cipher>, 
+    inner_phantom: PhantomData<Inner>
+}
 
 
-#[derive(Debug)]
+impl<Cipher, T> AesEncrypted<Cipher, T> 
+where 
+    Cipher: KeyInit + BlockCipher + BlockEncrypt + BlockSizeUser<BlockSize = aes_gcm::aes::cipher::consts::U16>,
+    T: From<Vec<u8>>
+{
+    pub fn into_aes_decrypted(
+        self,
+        key_bytes: &[u8],
+        nonce: &[u8]
+    ) -> Result<T, aes_gcm::Error> {
+        let key = Key::<AesGcm<Cipher, aes_gcm::aead::consts::U128>>::from_slice(key_bytes);
+        let cipher = AesGcm::<Cipher, aes_gcm::aead::consts::U128>::new(key);
+        let nonce = Nonce::from_slice(nonce);
+
+        cipher.decrypt(nonce, self.data.as_slice())
+            .map(|inner| inner.into())
+    }
+}
+
+impl<Cipher, T> std::fmt::Debug for AesEncrypted<Cipher, T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.data.fmt(f)
+    }
+}
+
+impl<Cipher, T> From<Vec<u8>> for AesEncrypted<Cipher, T> {
+    fn from(value: Vec<u8>) -> Self {
+        Self {
+            data: value,
+            cipher_phantom: PhantomData,
+            inner_phantom: PhantomData,
+        }
+    }
+}
+
+
+
+#[derive(Debug, Clone)]
 pub struct Hash<Alg> (Vec<u8>, PhantomData<Alg>);
 
 impl<Alg: Digest> Hash<Alg> {
@@ -205,13 +251,6 @@ impl<T: Sized + AsRef<[u8]>> Cryptography for T {
             PhantomData
         )
     }
-
-
-    // fn get_b64_decoded(&self) -> Result<Vec<u8>, base64::DecodeError> {
-    //     let x = String::from("what");
-
-    //     BASE64_STANDARD.decode(self)
-    // }
 
     fn get_hash<Alg: Digest>(&self) -> Hash<Alg> {
         Hash::digest_buffer(self.as_ref())

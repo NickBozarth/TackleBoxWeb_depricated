@@ -7,16 +7,28 @@ use serde::{Deserialize, Serialize};
 
 
 
-#[derive(Serialize)]
-pub struct TackleType(&'static str, &'static str);
+#[derive(Debug, Serialize, Deserialize)]
+pub struct TackleType{
+    type_name: String, 
+    class_list: Option<String>
+}
+
+impl TackleType {
+    pub fn new(type_name: &str, class_list: &str) -> Self {
+        Self {
+            type_name: type_name.to_string(),
+            class_list: Some(class_list.to_string())
+        }
+    }
+}
 
 static SECTIONS: OnceLock<Vec<TackleType>> = OnceLock::new();
 fn get_global_tackle_types() -> &'static Vec<TackleType> {
     SECTIONS.get_or_init(|| {
         vec![
-            TackleType("Text",  "text"),
-            TackleType("File",  "file"),
-            TackleType("Html",  "text file"),
+            TackleType::new("Text",  "text"),
+            TackleType::new("File",  "file"),
+            TackleType::new("Html",  "text file"),
             // TackleType("Image", "Image"),
         ]
     })

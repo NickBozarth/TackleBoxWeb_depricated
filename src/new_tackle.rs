@@ -1,18 +1,21 @@
+use aes_gcm::Aes256Gcm;
 use serde::Deserialize;
 
-use crate::sessions::SessionId;
+use crate::{get_endpoints::TackleType, rsa::{AesEncrypted, Base64String}, sessions::SessionId};
 
 
 
 #[derive(Debug, Deserialize)]
 pub struct NewTackleRequest {
     session_id: SessionId,
+    iv: Vec<u8>,
 
-    name: String,
-    description: Option<String>,
+    name: Base64String<AesEncrypted<Aes256Gcm, String>>,
+    description: Base64String<AesEncrypted<Aes256Gcm, String>>,
+    tackle_type: TackleType,
 
-    text_data: Option<String>,
-    file_data: Option<String>,
+    text_data: Option<Base64String<AesEncrypted<Aes256Gcm, String>>>,
+    file_data: Option<Base64String<AesEncrypted<Aes256Gcm, String>>>,
 
-    iv: Vec<u8>
+    share_with: Option<Base64String<AesEncrypted<Aes256Gcm, Vec<String>>>>
 }

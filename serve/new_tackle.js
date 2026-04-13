@@ -69,8 +69,9 @@ newTackleButton.addEventListener("click", async event => {
     newTackleForm.hidden = false;
 
     tackleTypes.forEach(type => {
-        let newOption = new Option(type[0], type[0].toLowerCase());
-        for(const className of type[1].split(" ")) newOption.classList.add(className);
+        console.log(type);
+        let newOption = new Option(type.type_name, type.type_name.toLowerCase());
+        for(const className of type.class_list.split(" ")) newOption.classList.add(className);
         tackleTypeSelect.add(newOption); 
     });
 
