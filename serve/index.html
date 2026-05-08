@@ -1,197 +1,63 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Here we are</title>
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+    <meta http-equiv="Pragma" content="no-cache" />
+    <meta http-equiv="Expires" content="0" />
+
+    <title>Here we aree</title>
 </head>
+
 <body>
     <h1>header</h1>
 
-    <form action="/foo" method="post" enctype="multipart/form-data">
-        <input type="text" name="description" value="Description input value" />
-        <input type="file" name="myFile" />
-        <button type="submit">Submit</button>
-    </form>
+    <div id="login-signup">
+        <h3>Login</h3>
+
+        <form id="login-form">
+            <input type="text" name="username" placeholder="Username" />
+            <input type="text" name="password" placeholder="Password" />
+            <button type="submit">Submit</button>
+            <button class="toggle-form">Toggle</button>
+        </form>
+
+        <form id="signup-form" hidden>
+            <input type="text" name="username" placeholder="Username" />
+            <input type="text" name="password" placeholder="Password" />
+            <button type="submit">Submit</button>
+            <button class="toggle-form">Toggle</button>
+        </form>
+    </div>
+
+    <br><br><br>
+
+    <div id="new-tackle-button">
+        <button>New Tackle</button>
+    </div>
+    <div id="new-tackle-form" hidden>
+        <h3>New Tackle</h3>
+        <form action="" id="new-tackle">
+            <input type="text" name="name" id="" placeholder="Name"><br><br>
+            <input type="text"name="desc" id="" placeholder="Description (optional)"><br><br>
+            <select name="type" id=""></select><br><br>
+            <div id="data">
+                <input name="text" type="text" placeholder="Text" class="text">
+                <input name="file" type="file" class="file">
+            </div>
+            <button type="submit">Submit</button>
+        </form>
+    </div>
+
+    
 </body>
 
-<script>
-    var privateKey;
-
-    async function generateRsaOaepPemKeys() {
-        // 1. Generate the Key Pair
-        const keyPair = await window.crypto.subtle.generateKey(
-            {
-                name: "RSA-OAEP",
-                modulusLength: 2048,
-                publicExponent: new Uint8Array([1, 0, 1]), // 65537
-                hash: "SHA-256",
-            },
-            true, // Set to true to allow exporting as strings
-            ["encrypt", "decrypt"]
-        );
-
-        // 2. Export Public Key to PEM (SPKI format)
-        const spki = await window.crypto.subtle.exportKey("spki", keyPair.publicKey);
-        const publicPem = formatPem(spki, "PUBLIC KEY");
-
-        return { publicPem, rawPrivateKey: keyPair.privateKey };
-    }
-
-    // Helper: Converts ArrayBuffer to Base64 and adds PEM headers
-    function formatPem(buffer, label) {
-        const base64 = btoa(String.fromCharCode(...new Uint8Array(buffer)));
-        // Break the string into 64-character lines for standard PEM formatting
-        const lines = base64.match(/.{1,64}/g).join('\n');
-        return `-----BEGIN ${label}-----\n${lines}\n-----END ${label}-----`;
-    }
-
-    
-    async function importPemRsaKey(pem) {
-        console.log(pem);
-        const base64 = pem
-            .replace("-----BEGIN PUBLIC KEY-----", "")
-            .replace("-----END PUBLIC KEY-----", "")
-            .replaceAll("%0A", "");
-    
-        const binaryString = window.atob(base64);
-        const bytes = new Uint8Array(binaryString.length);
-        for (let i = 0; i < binaryString.length; i++) {
-            bytes[i] = binaryString.charCodeAt(i);
-        }
-
-        return await window.crypto.subtle.importKey(
-            "spki",
-            bytes.buffer,
-            {
-                name : "RSA-OAEP",
-                hash : "SHA-256",
-            },
-            true,
-            ["encrypt"]
-        );
-    }
-
-
-    async function encryptWithPublicKey(pemKey, message) {
-        // 1. Clean the PEM string to get the Base64 content
-        const pemHeader = "-----BEGIN PUBLIC KEY-----";
-        const pemFooter = "-----END PUBLIC KEY-----";
-        const base64Contents = pemKey
-            .replace(pemHeader, "")
-            .replace(pemFooter, "")
-            .replaceAll("%0A", "")
-            .replace(/\s/g, "");
-
-        console.log("b64", base64Contents)
-
-        // 2. Convert Base64 to ArrayBuffer
-        const binaryDerString = window.atob(base64Contents);
-        const binaryDer = new Uint8Array(binaryDerString.length);
-        for (let i = 0; i < binaryDerString.length; i++) {
-            binaryDer[i] = binaryDerString.charCodeAt(i);
-        }
-
-        // 3. Import the Key
-        // Note: OpenSSL RSA_PKCS1_OAEP_PADDING defaults to SHA-1
-        const publicKey = await window.crypto.subtle.importKey(
-            "spki",
-            binaryDer.buffer,
-            {
-                name: "RSA-OAEP",
-                hash: "SHA-1", 
-            },
-            false,
-            ["encrypt"]
-        );
-
-        // 4. Encrypt the data
-        const encoder = new TextEncoder();
-        const data = encoder.encode(message);
-
-        const ciphertext = await window.crypto.subtle.encrypt(
-            { name: "RSA-OAEP" },
-            publicKey,
-            data
-        );
-
-        return ciphertext; // Returns an ArrayBuffer
-    }
-
-
-    async function encryptBuffer(publicKey, message) {
-        const messageBuffer = new TextEncoder().encode(message);
-
-        return await window.crypto.subtle.encrypt(
-            {
-                name : "RSA-OAEP"
-            },
-            publicKey,
-            messageBuffer,
-        );
-    }
-
-    
-
-    /*
-    generateRsaOaepPemKeys().then(keys => {
-        console.log(`Public PEM:\n${keys.publicPem}`);
-        privateKey = keys.rawPrivateKey;
-        console.log(`Private Key:\n${privateKey}`);
-    });
-    */
-
-
-    // Source - https://stackoverflow.com/a/15724300
-    // Posted by kirlich, modified by community. See post 'Timeline' for change history
-    // Retrieved 2026-03-17, License - CC BY-SA 4.0
-
-    function getCookie(name) {
-        const value = `; ${document.cookie}`;
-        const parts = value.split(`; ${name}=`);
-        if (parts.length === 2) return parts.pop().split(';').shift();
-    }
-
-
-
-
-    async function fetchTextDataEncrypted(path, body, headers) {
-        const serverPublicKeyCookie = getCookie("server-public-key");
-        if (serverPublicKeyCookie === undefined) return "failed to fetch cookie";
-        /*
-        const serverPublicKey = await importPemRsaKey(serverPublicKeyCookie);
-        console.log(serverPublicKey);
-        const encryptedBody = await encryptBuffer(serverPublicKey, body);
-        console.log(encryptedBody);
-        */
-        const encryptedBody = encryptWithPublicKey(serverPublicKeyCookie, body);
-
-        if (headers === undefined) headers = {};
-        headers["Content-Type"] = "text/plain";
-
-        let str = "[ ";
-        for (let item of new Uint8Array(encryptedBody)) {
-            str += `${item}, `;
-        }
-        str += "]";
-        console.log(str);
-
-
-        let resp = fetch(
-            path,
-            {
-                method : "POST",
-                headers: headers,
-                body   : encryptedBody,
-            },
-        );
-
-        console.log(resp);
-        return await resp;
-    }
-
-
-</script>
+<script src="result.js"></script>
+<script src="rsa.js"></script>
+<script src="login.js"></script>
+<script src="new_tackle.js"></script>
 
 
 </html>

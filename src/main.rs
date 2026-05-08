@@ -1,49 +1,66 @@
 use axum::{
-    body::Body,
-    routing::{
+    Router, extract::DefaultBodyLimit, middleware, response::Json, routing::{
         get,
-        get_service
-    },
-    response::Json,
-    Router,
-    middleware,
+        get_service, post
+    }
 };
 use serde_json::{
     Value, 
     json,
 };
+use sqlx::SqlitePool;
 use tower_http::services::{
     ServeDir,
     ServeFile,
 };
+use anyhow::Result;
 
 mod app_middleware;
-use app_middleware::my_middleware;
+use app_middleware::{key_manager, encryption_manager};
 
-// `&'static str` becomes a `200 OK` with `content-type: text/plain; charset=utf-8`
-async fn plain_text() -> &'static str {
-    "foo"
-}
+mod rsa;
+use rsa::gen_keys;
 
-// `Json` gives a content-type of `application/json` and works with any type
-// that implements `serde::Serialize`
-async fn json() -> Json<Value> {
-    Json(json!({ "data": 42 }))
-}
+mod post_endpoints;
+use post_endpoints::*;
+
+mod get_endpoints;
+use get_endpoints::*;
+
+mod extractors;
+
+mod app_state;
+use app_state::AppState;
+
+mod sessions;
+
+mod new_tackle;
+
+mod logins;
+
+
+
 
 #[tokio::main]
-async fn main() {
-    let serve_dir = ServeDir::new("serve");
-    let serve_index = ServeFile::new("serve/index.html");
+async fn main() -> Result<()> {
+    let state = AppState::new().await;
+    gen_keys()?;
+
 
     let app = Router::new()
-        .route("/plain_text", get(plain_text))
-        .route("/json", get(json))
-        .route("/", get_service(serve_index))
-        .fallback_service(serve_dir)
-        .layer(middleware::from_fn(my_middleware));
+        .route("/", get_service(ServeFile::new("serve/index.html")))
+        .route("/sections", get(get_tackle_types))
+        .route("/signup", post(signup_endpoint))
+        .route("/login", post(login_endpoint))
+        .route("/new_tackle", post(new_tackle))
+        .fallback_service(ServeDir::new("serve"))
+        .layer(DefaultBodyLimit::max(1024 * 1000)) // limit traffic to 100kb so i dont blow up codec manager
+        .layer(middleware::from_fn(encryption_manager))
+        .layer(middleware::from_fn(key_manager))
+        .with_state(state);
 
     let listener = tokio::net::TcpListener::bind("0.0.0.0:8080").await.unwrap();
     println!("Listening on {}", listener.local_addr().unwrap());
     axum::serve(listener, app).await.unwrap();
+    Ok(())
 }
