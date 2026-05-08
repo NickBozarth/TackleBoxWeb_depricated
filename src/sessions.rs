@@ -99,7 +99,11 @@ impl Session {
 
     pub fn is_valid(&self) -> bool {
         {
-            get_session_map().read().unwrap().iter().for_each(|x| println!("SESSION {:?}", x));
+            get_session_map()
+                .read()
+                .unwrap()
+                .iter()
+                .for_each(|x| println!("SESSION {:?}", x));
         }
 
         let x = get_session_map()

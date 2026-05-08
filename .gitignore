@@ -8,6 +8,9 @@ main
 compile_commands.json
 target/*
 
+database/
+database/*
+
 
 # Added by cargo
 

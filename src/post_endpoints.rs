@@ -18,7 +18,7 @@ pub async fn signup_endpoint(
     Json(signup_hash): Json<SignupHash>,
 ) -> &'static str {
     // attempt to insert signup
-    let query_result = sqlx::query("INSERT INTO logins VALUES (?, ?)")
+    let query_result = sqlx::query("INSERT INTO logins (username_hash, login_hash) VALUES (?, ?)")
         .bind(signup_hash.username_hash.to_string())
         .bind(signup_hash.login_hash.to_string())
         .execute(pool)
@@ -135,7 +135,7 @@ pub async fn login_endpoint(Pool(pool): Pool<'_>, Json(login_hash): Json<LoginHa
 
 
 pub async fn new_tackle(Json(new_tackle): Json<NewTackleRequest>) -> StatusCode {
-
+    println!("NEW TACKLE {:#?}", new_tackle);
 
     todo!()
 }

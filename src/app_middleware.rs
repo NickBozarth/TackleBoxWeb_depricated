@@ -37,6 +37,7 @@ pub async fn key_manager(request: Request, next: Next) -> Response {
     (cookies, response).into_response()
 }
 
+
 pub async fn encryption_manager(request: Request, next: Next) -> Response {
     if !request_is_encrypted(&request) {
         let resp = next.run(request).await;
@@ -48,8 +49,7 @@ pub async fn encryption_manager(request: Request, next: Next) -> Response {
     let client_pubkey_cookie = cookies
         .get("client-public-key")
         .expect("No client-public-key cookie present");
-    let client_pubkey =
-        import_pubkey(client_pubkey_cookie.value()).expect("Failed to import client pubkey");
+    let client_pubkey = import_pubkey(client_pubkey_cookie.value()).expect("Failed to import client pubkey");
 
     // retrieve encrypted body
     let (parts, encrypted_body) = request.into_parts();
@@ -67,6 +67,8 @@ pub async fn encryption_manager(request: Request, next: Next) -> Response {
         .expect("Failed to base64 decode body")
         .into_rsa_decrypted_global()
         .expect("Failed to decrypt body");
+
+
 
     println!("DECRYPTED BODY: {:?}", String::from_utf8_lossy(&decrypted_body));
 

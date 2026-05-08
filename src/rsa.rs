@@ -1,6 +1,5 @@
-use std::{ffi::os_str::Display, marker::PhantomData, str::Bytes, sync::OnceLock};
+use std::{marker::PhantomData, str::Bytes, sync::OnceLock};
 
-use aes_gcm::{AeadCore, Aes256Gcm, AesGcm, Key, KeyInit, KeySizeUser, Nonce, aead::Aead, aes::{self, cipher::{BlockCipher, BlockEncrypt, BlockSizeUser}}};
 use base64::{Engine, prelude::BASE64_STANDARD};
 use rand::rngs::OsRng;
 use rsa::{
@@ -143,43 +142,21 @@ impl<T> AsRef<[u8]> for RsaEncrypted<T> {
 
 
 #[derive(Deserialize)]
-pub struct AesEncrypted<Cipher, Inner> {
+pub struct AesEncrypted<Inner> {
     data: Vec<u8>, 
-    cipher_phantom: PhantomData<Cipher>, 
     inner_phantom: PhantomData<Inner>
 }
 
-
-impl<Cipher, T> AesEncrypted<Cipher, T> 
-where 
-    Cipher: KeyInit + BlockCipher + BlockEncrypt + BlockSizeUser<BlockSize = aes_gcm::aes::cipher::consts::U16>,
-    T: From<Vec<u8>>
-{
-    pub fn into_aes_decrypted(
-        self,
-        key_bytes: &[u8],
-        nonce: &[u8]
-    ) -> Result<T, aes_gcm::Error> {
-        let key = Key::<AesGcm<Cipher, aes_gcm::aead::consts::U128>>::from_slice(key_bytes);
-        let cipher = AesGcm::<Cipher, aes_gcm::aead::consts::U128>::new(key);
-        let nonce = Nonce::from_slice(nonce);
-
-        cipher.decrypt(nonce, self.data.as_slice())
-            .map(|inner| inner.into())
-    }
-}
-
-impl<Cipher, T> std::fmt::Debug for AesEncrypted<Cipher, T> {
+impl<T> std::fmt::Debug for AesEncrypted<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         self.data.fmt(f)
     }
 }
 
-impl<Cipher, T> From<Vec<u8>> for AesEncrypted<Cipher, T> {
+impl<T> From<Vec<u8>> for AesEncrypted<T> {
     fn from(value: Vec<u8>) -> Self {
         Self {
             data: value,
-            cipher_phantom: PhantomData,
             inner_phantom: PhantomData,
         }
     }

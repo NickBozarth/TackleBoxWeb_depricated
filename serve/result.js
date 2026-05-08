@@ -15,6 +15,6 @@ class Result {
 
     static err(value, err) {
         if (err === undefined) return new Result(value, false);
-        return new Result(value + ": " + err, false);
+        return new Result(`${value} [${err}]`, false);
     }
 }

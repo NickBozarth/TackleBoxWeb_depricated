@@ -1,6 +1,7 @@
 const loginForm = document.getElementById("login-form");
 const signupForm = document.getElementById("signup-form");
 const loginSignupHeader = document.querySelector("div#login-signup>h3");
+var loginHash = undefined;
 var passwordHash = undefined;
 var sessionId = undefined;
 
@@ -114,6 +115,7 @@ async function processLogin() {
     const loginHashB64Res = await textTosha256B64(username + password);
     if (loginHashB64Res.is_err) return loginHashB64Res;
     const loginHashB64 = loginHashB64Res.value;
+    loginHash = loginHashB64;
 
     passwordHash = await textTosha256B64(password);
 
